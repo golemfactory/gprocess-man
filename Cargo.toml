@@ -1,6 +1,11 @@
 [package]
 name = "gprocess-man"
 version = "0.1.0"
+authors = ["Golem Factory <contact@golem.network>"]
 edition = "2021"
+homepage = "https://github.com/golemfactory/gprocess-man"
+repository = "https://github.com/golemfactory/gprocess-man"
+license = "GPL-3.0"
+description = "Golem Process Manager"
 
 [dependencies]
