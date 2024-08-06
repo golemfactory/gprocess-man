@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package gprocess.api;
+
+message Process { uint64 pid = 1; }
+
+message ProcessInfo {
+  uint32 pid = 1;
+  string name = 2;
+  string path = 3;
+}
+
+// stdin/out/err?

@@ -9,3 +9,15 @@ license = "GPL-3.0"
 description = "Golem Process Manager"
 
 [dependencies]
+gprocess-proto = { path = "gprocess-proto" }
+
+[dev-dependencies]
+
+[workspace]
+members = ["gprocess-proto"]
+
+[workspace.dependencies]
+bytes = "1.7"
+prost = "0.13"
+prost-build = "0.13"
+prost-types = "0.13"
