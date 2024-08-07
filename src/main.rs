@@ -1,9 +1,14 @@
+use axum::Router;
 use clap::{arg, command, value_parser};
 use shadow_rs::shadow;
+use tokio::signal;
 use tracing::info;
 use tracing_subscriber::prelude::*;
 
 shadow!(build);
+
+mod app_state;
+mod routes;
 
 fn init_tracing() {
     let filter_layer = tracing_subscriber::EnvFilter::try_from_default_env()
@@ -46,6 +51,30 @@ fn print_version() {
     );
 }
 
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        signal::ctrl_c()
+            .await
+            .expect("Failed to install Ctrl+C handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        signal::unix::signal(signal::unix::SignalKind::terminate())
+            .expect("Failed to install signal handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => {},
+        _ = terminate => {},
+    }
+}
+
 #[tokio::main]
 async fn main() {
     init_tracing();
@@ -66,4 +95,19 @@ async fn main() {
         .to_string();
 
     info!("Listening on {}", interface);
+
+    let listener = tokio::net::TcpListener::bind(interface).await.unwrap();
+
+    let state = app_state::AppState {};
+
+    let app = Router::new()
+        .nest("/api/v1", routes::api::v1::get_routes())
+        .with_state(state.clone());
+
+    axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown_signal())
+        .await
+        .expect("Failed to start server");
+
+    info!("Shutting down");
 }

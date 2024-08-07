@@ -12,6 +12,7 @@ description = "Golem Process Manager"
 gprocess-proto = { path = "gprocess-proto" }
 axum.workspace = true
 clap.workspace = true
+futures.workspace = true
 shadow-rs.workspace = true
 tokio.workspace = true
 tracing-subscriber.workspace = true
@@ -29,6 +30,7 @@ members = ["gprocess-proto"]
 axum = { version = "0.7.5", features = ["ws"] }
 bytes = "1.7.1"
 clap = { version = "4.5.13", features = ["cargo"] }
+futures = "0.3.30"
 prost = "0.13.1"
 prost-build = "0.13.1"
 prost-types = "0.13.1"
