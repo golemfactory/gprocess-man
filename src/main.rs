@@ -1,6 +1,9 @@
 use axum::Router;
 use clap::{arg, command, value_parser};
 use shadow_rs::shadow;
+use std::ffi::OsStr;
+use std::net::SocketAddr;
+use std::path::PathBuf;
 use tokio::signal;
 use tracing::info;
 use tracing_subscriber::prelude::*;
@@ -83,18 +86,16 @@ async fn main() {
         .arg(
             arg!(-l --listen <INTERFACE> "Interface to listen on")
                 .required(false)
-                .value_parser(value_parser!(String)),
+                .default_value("0.0.0.0:1234")
+                .value_parser(value_parser!(SocketAddr)),
         )
         .get_matches();
 
     print_version();
 
-    let interface = matches
-        .get_one::<String>("listen")
-        .unwrap_or(&"0.0.0.0:1234".to_string())
-        .to_string();
+    let interface = matches.get_one::<SocketAddr>("listen").unwrap();
 
-    info!("Listening on {}", interface);
+    info!("Listening on {:?}", interface);
 
     let listener = tokio::net::TcpListener::bind(interface).await.unwrap();
 
