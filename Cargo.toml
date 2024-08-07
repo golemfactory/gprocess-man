@@ -10,6 +10,15 @@ description = "Golem Process Manager"
 
 [dependencies]
 gprocess-proto = { path = "gprocess-proto" }
+axum.workspace = true
+clap.workspace = true
+shadow-rs.workspace = true
+tokio.workspace = true
+tracing-subscriber.workspace = true
+tracing.workspace = true
+
+[build-dependencies]
+shadow-rs.workspace = true
 
 [dev-dependencies]
 
@@ -17,7 +26,13 @@ gprocess-proto = { path = "gprocess-proto" }
 members = ["gprocess-proto"]
 
 [workspace.dependencies]
-bytes = "1.7"
-prost = "0.13"
-prost-build = "0.13"
-prost-types = "0.13"
+axum = { version = "0.7.5", features = ["ws"] }
+bytes = "1.7.1"
+clap = { version = "4.5.13", features = ["cargo"] }
+prost = "0.13.1"
+prost-build = "0.13.1"
+prost-types = "0.13.1"
+shadow-rs = "0.31.1"
+tokio = { version = "1.39.2", features = ["full"] }
+tracing = "0.1.40"
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
