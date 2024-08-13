@@ -19,6 +19,7 @@ shadow-rs.workspace = true
 tokio.workspace = true
 tracing-subscriber.workspace = true
 tracing.workspace = true
+parking_lot.workspace = true
 
 [build-dependencies]
 shadow-rs.workspace = true
@@ -50,3 +51,4 @@ thiserror = "1.0.63"
 tokio = { version = "1.39.2", features = ["full"] }
 tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+parking_lot = "0.12.3"

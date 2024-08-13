@@ -12,14 +12,15 @@ use gprocess_proto::gprocess::api;
 
 use crate::{
     utils::{int_to_stream_type, stream_type_to_stdio},
-    ChildInfo,
+
 };
+use crate::process_manager::ProcessManager;
 
 pub async fn handle(
     request_id: u32,
     request: &api::StartRequest,
-    processes: &mut HashMap<u64, ChildInfo>,
-) -> api::Response {
+    processes: ProcessManager,
+) -> anyhow::Result<api::Response> {
     let mut command = Command::new(request.program.clone());
 
     for arg in request.args.iter() {
@@ -45,13 +46,11 @@ pub async fn handle(
     }
 
     for env in request.env.iter() {
-        let key = String::from_utf8(env.name.clone())
-            .expect("Failed to convert environment variable name to string");
+        let key = OsStr::from_bytes(&env.name);
+
         match env.value.clone() {
             Some(value) => {
-                let value = String::from_utf8(value)
-                    .expect("Failed to convert environment variable value to string");
-                command.env(key, value);
+                command.env(key, OsStr::from_bytes(&value));
             }
             None => {
                 command.env_remove(key);
@@ -66,25 +65,14 @@ pub async fn handle(
     command.stdout(stream_type_to_stdio(stdout));
     command.stderr(stream_type_to_stdio(stderr));
 
-    let mut spawned = command.spawn().expect("Failed to start process");
+    let mut spawned = command.spawn()?;
 
-    let pid = spawned.id();
-    let stdin = spawned.stdin.take();
-    let stdout = spawned.stdout.take();
-    let stderr = spawned.stderr.take();
 
-    let stdin_fd = stdin.as_ref().map(|x| x.as_raw_fd());
-    let stdout_fd = stdout.as_ref().map(|x| x.as_raw_fd());
-    let stderr_fd = stderr.as_ref().map(|x| x.as_raw_fd());
+    let stdin_fd = spawned.stdin.as_ref().map(|x| x.as_raw_fd());
+    let stdout_fd = spawned.stdout.as_ref().map(|x| x.as_raw_fd());
+    let stderr_fd = spawned.stderr.as_ref().map(|x| x.as_raw_fd());
 
-    let child_info = ChildInfo {
-        child: spawned,
-        stdin,
-        stdout,
-        stderr,
-    };
-
-    processes.insert(pid as u64, child_info);
+    let pid = processes.add_process(spawned)?;
 
     let start_response = api::StartResponse {
         pid: pid as u64,
@@ -93,8 +81,8 @@ pub async fn handle(
         stderr: stderr_fd,
     };
 
-    api::Response {
+    Ok(api::Response {
         request_id,
         command: Some(api::response::Command::Start(start_response)),
-    }
+    })
 }

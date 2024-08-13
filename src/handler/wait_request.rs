@@ -2,13 +2,15 @@ use std::collections::HashMap;
 
 use gprocess_proto::gprocess::api;
 
-use crate::ChildInfo;
+use crate::process_manager::ProcessManager;
 
 pub async fn handle(
     request_id: u32,
     request: &api::WaitRequest,
-    processes: &mut HashMap<u64, ChildInfo>,
+    processes: ProcessManager,
 ) -> api::Response {
+    todo!()
+    /*
     match processes.get_mut(&request.pid) {
         Some(process) => {
             let status = process
@@ -29,4 +31,6 @@ pub async fn handle(
             })),
         },
     }
+
+     */
 }

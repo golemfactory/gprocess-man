@@ -7,7 +7,9 @@ use tokio::sync::mpsc::{self};
 use tracing::{info, trace};
 
 use command::QueueCommand;
-use handler::{handle_request_command, reap_processes};
+use gprocess_proto::gprocess::api;
+use gprocess_proto::gprocess::api::Response;
+use handler::{handle_request_command};
 use utils::{init_tracing, print_version};
 
 shadow!(build);
@@ -16,13 +18,7 @@ mod command;
 mod handler;
 mod network;
 mod utils;
-
-struct ChildInfo {
-    child: Child,
-    stdin: Option<std::process::ChildStdin>,
-    stdout: Option<std::process::ChildStdout>,
-    stderr: Option<std::process::ChildStderr>,
-}
+mod process_manager;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -47,7 +43,7 @@ async fn main() -> anyhow::Result<()> {
 
     info!("Listening on {:?}", interface);
 
-    let mut processes: HashMap<u64, ChildInfo> = HashMap::new();
+    let processes = process_manager::create();
 
     let (queue_tx, mut queue_rx) = mpsc::channel::<QueueCommand>(32);
 
@@ -56,10 +52,22 @@ async fn main() -> anyhow::Result<()> {
         while let Some(command) = queue_rx.recv().await {
             match command {
                 QueueCommand::Reaper => {
-                    reap_processes(&mut processes).await;
+                    //
                 }
                 QueueCommand::Command(id, request, response_tx) => {
-                    let response = handle_request_command(id, &request, &mut processes).await;
+                    let response = match handle_request_command(id, request, processes.clone()).await {
+                        Ok(v) => v,
+                        Err(e) => {
+                            tracing::error!("failed to process command: {:?}", e);
+                            Response {
+                                request_id: id,
+                                command: Some(api::response::Command::Error(api::Error {
+                                    message: format!("{:?}", e),
+                                })),
+                            }
+                        }
+                    };
+
                     response_tx.send(response).unwrap();
                 }
             }
