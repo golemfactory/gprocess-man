@@ -1,85 +1,31 @@
-use axum::Router;
+use std::{collections::HashMap, net::SocketAddr, process::Child};
+
 use clap::{arg, command, value_parser};
+use network::process_connection;
 use shadow_rs::shadow;
-use std::ffi::OsStr;
-use std::net::SocketAddr;
-use std::path::PathBuf;
-use tokio::signal;
-use tracing::info;
-use tracing_subscriber::prelude::*;
+use tokio::sync::mpsc::{self};
+use tracing::{info, trace};
+
+use command::QueueCommand;
+use handler::{handle_request_command, reap_processes};
+use utils::{init_tracing, print_version};
 
 shadow!(build);
 
-mod app_state;
-mod routes;
+mod command;
+mod handler;
+mod network;
+mod utils;
 
-fn init_tracing() {
-    let filter_layer = tracing_subscriber::EnvFilter::try_from_default_env()
-        .or_else(|_| tracing_subscriber::EnvFilter::try_new("info"))
-        .unwrap();
-
-    tracing_subscriber::Registry::default()
-        .with(filter_layer)
-        .with(
-            tracing_subscriber::fmt::layer()
-                .with_target(false)
-                .without_time(),
-        )
-        .init();
-}
-
-fn print_version() {
-    info!(
-        "{} {} ({}, {}, git: {}, {}, {}{})",
-        build::PROJECT_NAME,
-        build::PKG_VERSION,
-        if shadow_rs::is_debug() {
-            "debug"
-        } else {
-            "release"
-        },
-        build::BUILD_OS,
-        build::SHORT_COMMIT,
-        if build::BRANCH.is_empty() {
-            "no branch"
-        } else {
-            build::BRANCH
-        },
-        if build::TAG.is_empty() {
-            "no tag"
-        } else {
-            build::TAG
-        },
-        if !build::GIT_CLEAN { ", dirty" } else { "" }
-    );
-}
-
-async fn shutdown_signal() {
-    let ctrl_c = async {
-        signal::ctrl_c()
-            .await
-            .expect("Failed to install Ctrl+C handler");
-    };
-
-    #[cfg(unix)]
-    let terminate = async {
-        signal::unix::signal(signal::unix::SignalKind::terminate())
-            .expect("Failed to install signal handler")
-            .recv()
-            .await;
-    };
-
-    #[cfg(not(unix))]
-    let terminate = std::future::pending::<()>();
-
-    tokio::select! {
-        _ = ctrl_c => {},
-        _ = terminate => {},
-    }
+struct ChildInfo {
+    child: Child,
+    stdin: Option<std::process::ChildStdin>,
+    stdout: Option<std::process::ChildStdout>,
+    stderr: Option<std::process::ChildStderr>,
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> anyhow::Result<()> {
     init_tracing();
 
     let matches = command!()
@@ -93,22 +39,60 @@ async fn main() {
 
     print_version();
 
-    let interface = matches.get_one::<SocketAddr>("listen").unwrap();
+    let interface = matches
+        .get_one::<SocketAddr>("listen")
+        .expect("Failed to parse interface");
+
+    let listener = tokio::net::TcpListener::bind(interface).await?;
 
     info!("Listening on {:?}", interface);
 
-    let listener = tokio::net::TcpListener::bind(interface).await.unwrap();
+    let mut processes: HashMap<u64, ChildInfo> = HashMap::new();
 
-    let state = app_state::AppState {};
+    let (queue_tx, mut queue_rx) = mpsc::channel::<QueueCommand>(32);
 
-    let app = Router::new()
-        .nest("/api/v1", routes::api::v1::get_routes())
-        .with_state(state.clone());
+    tokio::spawn(async move {
+        // process commands queue
+        while let Some(command) = queue_rx.recv().await {
+            match command {
+                QueueCommand::Reaper => {
+                    reap_processes(&mut processes).await;
+                }
+                QueueCommand::Command(id, request, response_tx) => {
+                    let response = handle_request_command(id, &request, &mut processes).await;
+                    response_tx.send(response).unwrap();
+                }
+            }
+        }
+    });
 
-    axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown_signal())
-        .await
-        .expect("Failed to start server");
+    let reaper_queue_tx = queue_tx.clone();
 
-    info!("Shutting down");
+    tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+            reaper_queue_tx.send(QueueCommand::Reaper).await.unwrap();
+        }
+    });
+
+    loop {
+        trace!("Waiting for connection");
+        let (mut stream, addr) = listener.accept().await?;
+
+        trace!("Accepted connection from {:?}", addr);
+
+        let queue_tx = queue_tx.clone();
+
+        tokio::spawn(async move {
+            trace!("Processing connection from {:?}", addr);
+
+            let rc = process_connection(&mut stream, queue_tx).await;
+
+            if let Err(e) = rc {
+                tracing::error!("Error processing connection from {:?}: {}", addr, e);
+            }
+        });
+    }
+
+    // info!("Shutting down");
 }

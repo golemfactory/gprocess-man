@@ -11,23 +11,38 @@ package gprocess.api;
 
 */
 
+enum Stream {
+  NULL = 0;
+  PIPE = 1;
+  INHERIT = 2;
+}
+
+message Error { required string message = 2; }
+
+message Env {
+  required bytes name = 1;
+  optional bytes value = 2;
+}
+
 message Request {
   required uint32 request_id = 1;
   oneof command {
     StartRequest start = 2;
-    SignalRequest  signal = 3;
+    SignalRequest signal = 3;
     WaitRequest wait = 4;
     ReadRequest read = 5;
     WriteRequest write = 6;
   }
-
 }
-
 
 message Response {
   required uint32 request_id = 1;
   oneof command {
     StartResponse start = 2;
+    SignalResponse signal = 3;
+    WaitResponse wait = 4;
+    ReadResponse read = 5;
+    WriteResponse write = 6;
 
     Error error = 99;
   }
@@ -36,66 +51,57 @@ message Response {
 message StartRequest {
   required string program = 1;
   repeated bytes args = 2;
-  optional bytes work_dir = 3;
-  optional bool env_clear = 4;
-
+  optional uint32 uid = 3;
+  optional uint32 gid = 4;
+  optional bytes work_dir = 5;
+  optional bool env_clear = 6;
   repeated Env env = 10;
   optional Stream stdin = 11;
   optional Stream stdout = 12;
   optional Stream stderr = 13;
-  // TODO: ?? uid, gid
 }
 
 message SignalRequest {
-
+  required uint64 pid = 1;
+  required int32 signal = 2;
 }
 
-
-message WaitRequest {
-}
+message WaitRequest { required uint64 pid = 1; }
 
 message ReadRequest {
   required uint64 pid = 1;
-  required uint32 stream = 2;
+  required int32 stream = 2;
   required uint32 len = 3;
 }
 
 message WriteRequest {
   required uint64 pid = 1;
-  required uint32 stream = 2;
+  required int32 stream = 2;
   required bytes data = 3;
-}
-
-message Env {
-  required bytes name = 1;
-  optional bytes value  = 2;
-}
-
-enum Stream {
-  NULL = 0;
-  PIPE = 1;
-  INHERIT = 2;
 }
 
 message StartResponse {
   required uint64 pid = 1;
-  optional uint32 stdin = 10;
-  optional uint32 stdout = 11;
-  optional uint32 stderr = 12;
+  optional int32 stdin = 10;
+  optional int32 stdout = 11;
+  optional int32 stderr = 12;
 }
 
-message Process {
-  required uint64 pid = 1;
+message SignalResponse {}
+
+message WaitResponse { required int32 status = 1; }
+
+message ReadResponse {
+  required uint32 len = 1;
+  required bytes data = 2;
 }
+
+message WriteResponse { required uint32 len = 1; }
+
+message Process { required uint64 pid = 1; }
 
 message ProcessInfo {
-  required uint32 pid = 1;
+  required uint64 pid = 1;
   optional string name = 2;
   optional string path = 3;
 }
-
-
-message Error {
-  required string message = 2;
-}
-// stdin/out/err?
