@@ -1,3 +1,5 @@
+use anyhow::Context;
+use gprocess_proto::gprocess::api;
 use std::{
     collections::HashMap,
     ffi::OsStr,
@@ -8,13 +10,8 @@ use std::{
     process::Command,
 };
 
-use gprocess_proto::gprocess::api;
-
-use crate::{
-    utils::{int_to_stream_type, stream_type_to_stdio},
-
-};
 use crate::process_manager::ProcessManager;
+use crate::utils::{int_to_stream_type, stream_type_to_stdio};
 
 pub async fn handle(
     request_id: u32,
@@ -65,12 +62,13 @@ pub async fn handle(
     command.stdout(stream_type_to_stdio(stdout));
     command.stderr(stream_type_to_stdio(stderr));
 
-    let mut spawned = command.spawn()?;
+    let mut spawned = command
+        .spawn()
+        .with_context(|| format!("failed to run {:?}", request.program))?;
 
-
-    let stdin_fd = spawned.stdin.as_ref().map(|x| x.as_raw_fd());
-    let stdout_fd = spawned.stdout.as_ref().map(|x| x.as_raw_fd());
-    let stderr_fd = spawned.stderr.as_ref().map(|x| x.as_raw_fd());
+    let stdin_fd = spawned.stdin.as_ref().map(|_| 0);
+    let stdout_fd = spawned.stdout.as_ref().map(|_| 1);
+    let stderr_fd = spawned.stderr.as_ref().map(|_| 2);
 
     let pid = processes.add_process(spawned)?;
 

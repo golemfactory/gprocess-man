@@ -3,8 +3,8 @@ use api::response::Command;
 use gprocess_proto::gprocess::api;
 use std::{collections::HashMap, io::Read, os::fd::AsRawFd};
 
-use crate::{utils::MAX_PACKET_SIZE};
 use crate::process_manager::ProcessManager;
+use crate::utils::MAX_PACKET_SIZE;
 
 pub async fn handle(
     request_id: u32,
@@ -21,9 +21,9 @@ pub async fn handle(
 
     let mut r = processes.get_reader(request.pid, request.stream)?;
     let mut buf = vec![0; request.len as usize];
-    let (read, mut buf) = tokio::task::spawn_blocking(move || {
-        anyhow::Ok((r.read(&mut buf)?, buf))
-    }).await.context("read error")??;
+    let (read, mut buf) = tokio::task::spawn_blocking(move || anyhow::Ok((r.read(&mut buf)?, buf)))
+        .await
+        .context("read error")??;
 
     buf.truncate(read);
 

@@ -1,6 +1,6 @@
-use std::collections::HashMap;
 use anyhow::Context;
 use gprocess_proto::gprocess::api;
+use std::collections::HashMap;
 use tracing::{debug, error, info};
 
 use crate::process_manager::ProcessManager;
@@ -22,7 +22,9 @@ pub async fn handle_request_command(
         Command::Start(request) => start_request::handle(request_id, &request, processes).await?,
         Command::Signal(request) => signal_request::handle(request_id, &request, processes).await,
         Command::Wait(request) => wait_request::handle(request_id, &request, processes).await,
-        Command::Read(request) => read_request::handle(request_id, &request, processes).await.context("failed to process read")?,
+        Command::Read(request) => read_request::handle(request_id, &request, processes)
+            .await
+            .context("failed to process read")?,
         Command::Write(request) => write_request::handle(request_id, request, processes).await?,
     })
 }

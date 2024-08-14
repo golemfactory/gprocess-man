@@ -1,4 +1,9 @@
-use std::{collections::HashMap, net::SocketAddr, process::Child};
+#![allow(unused_imports)]
+#![allow(unused_variables)]
+#![allow(unused_mut)]
+#![allow(dead_code)]
+
+use std::net::SocketAddr;
 
 use clap::{arg, command, value_parser};
 use network::process_connection;
@@ -9,7 +14,7 @@ use tracing::{info, trace};
 use command::QueueCommand;
 use gprocess_proto::gprocess::api;
 use gprocess_proto::gprocess::api::Response;
-use handler::{handle_request_command};
+use handler::handle_request_command;
 use utils::{init_tracing, print_version};
 
 shadow!(build);
@@ -17,8 +22,8 @@ shadow!(build);
 mod command;
 mod handler;
 mod network;
-mod utils;
 mod process_manager;
+mod utils;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -55,18 +60,19 @@ async fn main() -> anyhow::Result<()> {
                     //
                 }
                 QueueCommand::Command(id, request, response_tx) => {
-                    let response = match handle_request_command(id, request, processes.clone()).await {
-                        Ok(v) => v,
-                        Err(e) => {
-                            tracing::error!("failed to process command: {:?}", e);
-                            Response {
-                                request_id: id,
-                                command: Some(api::response::Command::Error(api::Error {
-                                    message: format!("{:?}", e),
-                                })),
+                    let response =
+                        match handle_request_command(id, request, processes.clone()).await {
+                            Ok(v) => v,
+                            Err(e) => {
+                                tracing::error!("failed to process command: {:?}", e);
+                                Response {
+                                    request_id: id,
+                                    command: Some(api::response::Command::Error(api::Error {
+                                        message: format!("{:?}", e),
+                                    })),
+                                }
                             }
-                        }
-                    };
+                        };
 
                     response_tx.send(response).unwrap();
                 }

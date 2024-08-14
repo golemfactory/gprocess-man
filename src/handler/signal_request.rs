@@ -2,8 +2,8 @@ use std::collections::HashMap;
 
 use gprocess_proto::gprocess::api;
 
-use crate::{utils::int_to_signal};
 use crate::process_manager::ProcessManager;
+use crate::utils::int_to_signal;
 
 pub async fn handle(
     request_id: u32,
