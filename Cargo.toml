@@ -13,7 +13,7 @@ gprocess-proto = { path = "gprocess-proto" }
 anyhow.workspace = true
 clap.workspace = true
 futures.workspace = true
-nix.workspace = true
+nix = { workspace = true, features = ["term", "ioctl"] }
 prost.workspace = true
 shadow-rs.workspace = true
 tokio.workspace = true
@@ -25,6 +25,7 @@ parking_lot.workspace = true
 shadow-rs.workspace = true
 
 [dev-dependencies]
+crossterm = "0.28.1"
 
 [workspace]
 members = ["gprocess-proto"]
