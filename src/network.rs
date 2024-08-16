@@ -1,6 +1,9 @@
+use std::pin::pin;
 use anyhow::{bail, Result};
+use futures::future::Either;
 use gprocess_proto::gprocess::api;
 use prost::Message;
+use futures::prelude::*;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{
@@ -74,7 +77,7 @@ pub async fn process_connection(stream: TcpStream, queue_tx: Sender<QueueCommand
             }
         }
         trace!("Write channel closed");
-        Ok(())
+        anyhow::Ok(())
     };
 
     let reader = async move {
@@ -104,7 +107,14 @@ pub async fn process_connection(stream: TcpStream, queue_tx: Sender<QueueCommand
         }
     };
 
-    tokio::try_join!(reader, writer)?;
+    match future::select(pin!(reader), pin!(writer)).await {
+        Either::Left(_) => {
+            trace!("read done");
+        }
+        Either::Right(_) => {
+            trace!("write done");
+        }
+    };
 
     trace!("Connection closed");
     anyhow::Ok(())
