@@ -59,7 +59,7 @@ impl ProcessManager {
 
     pub fn wait(&self, pid: Pid) -> Result<i32> {
         let mut pi = self.pi(pid)?;
-        let status = pi.child.wait()?;
+        // let status = pi.child.wait()?;
         Ok(0)
     }
 

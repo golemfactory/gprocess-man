@@ -33,8 +33,8 @@ async fn main() -> anyhow::Result<()> {
     let mut request_id = 0u32;
 
     let start_request = StartRequest {
-        program: "target/debug/sample-testd".to_string(),
-        args: vec!["10".into(), "500".into()],
+        program: "/bin/cat".to_string(),
+        // args: vec!["10".into(), "500".into()],
         stdin: Some(Stream::Pipe as i32),
         stdout: Some(Stream::Pipe as i32),
         stderr: Some(Stream::Pipe as i32),

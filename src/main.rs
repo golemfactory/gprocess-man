@@ -61,21 +61,32 @@ async fn main() -> anyhow::Result<()> {
                 }
                 QueueCommand::Command(id, request, response_tx) => {
                     let processes = processes.clone();
-                    tokio::spawn(async move {
-                        let response = match handle_request_command(id, request, processes).await {
-                            Ok(v) => v,
+                    let h = tokio::spawn(async move {
+                        let response = handle_request_command(id, request, processes);
+                        let rc = tokio::select! {
+                            r = response => {
+                                r
+                            },
+                            response_tx = response_tx.closed() => {
+                                tracing::error!("Response channel closed");
+                                return;
+                            }
+                        };
+
+                        let response = match rc {
+                            Ok(response) => response,
                             Err(e) => {
-                                tracing::error!("failed to process command: {:?}", e);
-                                Response {
+                                tracing::error!("late response: {}", e);
+                                api::Response {
                                     request_id: id,
-                                    command: Some(api::response::Command::Error(api::Error {
-                                        message: format!("{:?}", e),
-                                    })),
+                                    command: None,
                                 }
                             }
                         };
 
-                        response_tx.send(response).await.unwrap();
+                        if let Err(e) = response_tx.send(response).await {
+                            tracing::error!("Error sending response: {}", e);
+                        }
                     });
                 }
             }

@@ -11,8 +11,9 @@ use tokio::{
         mpsc::{self, Sender},
         oneshot,
     },
+    task::{self, LocalSet},
 };
-use tracing::{debug, error};
+use tracing::{debug, error, trace};
 
 use crate::{command::QueueCommand, utils::MAX_PACKET_SIZE};
 
@@ -21,6 +22,7 @@ pub async fn read_request(stream: &mut OwnedReadHalf) -> Result<Option<api::Requ
 
     if size.is_err() {
         // Connection closed?!: Connection reset by peer (os error 54)
+        error!("Error reading packet size: {}", size.err().unwrap());
         return Ok(None);
     };
 
@@ -64,14 +66,21 @@ pub async fn process_connection(stream: TcpStream, queue_tx: Sender<QueueCommand
 
     let (write_tx, mut write_rx) = mpsc::channel::<api::Response>(32);
 
-    tokio::spawn(async move {
-        while let Some(response) = write_rx.recv().await {
-            debug!("Writing response: {:?}", response);
-            if let Err(e) = write_response(&mut writer, &response).await {
-                error!("Error writing response: {}", e);
-            }
-        }
-    });
+    let local = task::LocalSet::new();
+
+    local
+        .run_until({
+            task::spawn_local(async move {
+                while let Some(response) = write_rx.recv().await {
+                    debug!("Writing response: {:?}", response);
+                    if let Err(e) = write_response(&mut writer, &response).await {
+                        error!("Error writing response: {}", e);
+                    }
+                }
+                trace!("Write channel closed");
+            })
+        })
+        .await;
 
     loop {
         let request = match read_request(&mut reader).await? {
@@ -97,4 +106,6 @@ pub async fn process_connection(stream: TcpStream, queue_tx: Sender<QueueCommand
             }
         }
     }
+
+    trace!("Connection closed");
 }
