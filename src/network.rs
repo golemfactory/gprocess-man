@@ -3,14 +3,20 @@ use gprocess_proto::gprocess::api;
 use prost::Message;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
-    net::TcpStream,
-    sync::{mpsc::Sender, oneshot},
+    net::{
+        tcp::{OwnedReadHalf, OwnedWriteHalf},
+        TcpStream,
+    },
+    sync::{
+        mpsc::{self, Sender},
+        oneshot,
+    },
 };
-use tracing::error;
+use tracing::{debug, error};
 
 use crate::{command::QueueCommand, utils::MAX_PACKET_SIZE};
 
-pub async fn read_request(stream: &mut TcpStream) -> Result<Option<api::Request>> {
+pub async fn read_request(stream: &mut OwnedReadHalf) -> Result<Option<api::Request>> {
     let size = stream.read_u32().await;
 
     if size.is_err() {
@@ -46,19 +52,29 @@ pub async fn read_request(stream: &mut TcpStream) -> Result<Option<api::Request>
     Ok(Some(api::Request::decode(buf.as_slice())?))
 }
 
-pub async fn write_response(stream: &mut TcpStream, response: &api::Response) -> Result<()> {
+pub async fn write_response(stream: &mut OwnedWriteHalf, response: &api::Response) -> Result<()> {
     stream.write_u32(response.encoded_len() as u32).await?;
     stream.write_all(&response.encode_to_vec()).await?;
 
     Ok(())
 }
 
-pub async fn process_connection(
-    stream: &mut TcpStream,
-    queue_tx: Sender<QueueCommand>,
-) -> Result<()> {
+pub async fn process_connection(stream: TcpStream, queue_tx: Sender<QueueCommand>) -> Result<()> {
+    let (mut reader, mut writer) = stream.into_split();
+
+    let (write_tx, mut write_rx) = mpsc::channel::<api::Response>(32);
+
+    tokio::spawn(async move {
+        while let Some(response) = write_rx.recv().await {
+            debug!("Writing response: {:?}", response);
+            if let Err(e) = write_response(&mut writer, &response).await {
+                error!("Error writing response: {}", e);
+            }
+        }
+    });
+
     loop {
-        let request = match read_request(stream).await? {
+        let request = match read_request(&mut reader).await? {
             Some(request) => request,
             None => {
                 return Ok(());
@@ -67,18 +83,13 @@ pub async fn process_connection(
 
         match request.command {
             Some(command) => {
-                let (response_tx, response_rx) = oneshot::channel::<api::Response>();
-
                 queue_tx
                     .send(QueueCommand::Command(
                         request.request_id,
                         command,
-                        response_tx,
+                        write_tx.clone(),
                     ))
                     .await?;
-
-                let response = response_rx.await?;
-                write_response(stream, &response).await?;
             }
             None => {
                 error!("Missing command");

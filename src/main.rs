@@ -60,8 +60,9 @@ async fn main() -> anyhow::Result<()> {
                     //
                 }
                 QueueCommand::Command(id, request, response_tx) => {
-                    let response =
-                        match handle_request_command(id, request, processes.clone()).await {
+                    let processes = processes.clone();
+                    tokio::spawn(async move {
+                        let response = match handle_request_command(id, request, processes).await {
                             Ok(v) => v,
                             Err(e) => {
                                 tracing::error!("failed to process command: {:?}", e);
@@ -74,7 +75,8 @@ async fn main() -> anyhow::Result<()> {
                             }
                         };
 
-                    response_tx.send(response).unwrap();
+                        response_tx.send(response).await.unwrap();
+                    });
                 }
             }
         }
@@ -91,7 +93,7 @@ async fn main() -> anyhow::Result<()> {
 
     loop {
         trace!("Waiting for connection");
-        let (mut stream, addr) = listener.accept().await?;
+        let (stream, addr) = listener.accept().await?;
 
         trace!("Accepted connection from {:?}", addr);
 
@@ -100,7 +102,7 @@ async fn main() -> anyhow::Result<()> {
         tokio::spawn(async move {
             trace!("Processing connection from {:?}", addr);
 
-            let rc = process_connection(&mut stream, queue_tx).await;
+            let rc = process_connection(stream, queue_tx).await;
 
             if let Err(e) = rc {
                 tracing::error!("Error processing connection from {:?}: {}", addr, e);

@@ -18,13 +18,26 @@ pub async fn handle_request_command(
 ) -> anyhow::Result<api::Response> {
     use api::request::Command;
 
-    Ok(match request {
-        Command::Start(request) => start_request::handle(request_id, &request, processes).await?,
-        Command::Signal(request) => signal_request::handle(request_id, &request, processes).await,
-        Command::Wait(request) => wait_request::handle(request_id, &request, processes).await,
-        Command::Read(request) => read_request::handle(request_id, &request, processes)
+    let command = match request {
+        Command::Start(request) => start_request::handle(&request, processes)
+            .await
+            .context("failed to start process")?,
+        Command::Signal(request) => signal_request::handle(&request, processes)
+            .await
+            .context("failed to signal process")?,
+        Command::Wait(request) => wait_request::handle(&request, processes)
+            .await
+            .context("failed to wait for process")?,
+        Command::Read(request) => read_request::handle(&request, processes)
             .await
             .context("failed to process read")?,
-        Command::Write(request) => write_request::handle(request_id, request, processes).await?,
+        Command::Write(request) => write_request::handle(request, processes)
+            .await
+            .context("failed to write to process")?,
+    };
+
+    Ok(api::Response {
+        request_id,
+        command: Some(command),
     })
 }

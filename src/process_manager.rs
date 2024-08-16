@@ -57,6 +57,12 @@ impl ProcessManager {
         todo!()
     }
 
+    pub fn wait(&self, pid: Pid) -> Result<i32> {
+        let mut pi = self.pi(pid)?;
+        let status = pi.child.wait()?;
+        Ok(0)
+    }
+
     fn pi(&self, pid: Pid) -> anyhow::Result<Arc<ChildInfo>> {
         let mut g = self.inner.lock();
         let pi = g.get(&pid).ok_or_else(|| anyhow!("pid {pid} not found"))?;

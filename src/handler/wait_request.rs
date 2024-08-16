@@ -5,10 +5,10 @@ use gprocess_proto::gprocess::api;
 use crate::process_manager::ProcessManager;
 
 pub async fn handle(
-    request_id: u32,
     request: &api::WaitRequest,
     processes: ProcessManager,
-) -> api::Response {
+) -> anyhow::Result<api::response::Command> {
+    let mut w = processes.wait(request.pid)?;
     todo!()
     /*
     match processes.get_mut(&request.pid) {

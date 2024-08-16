@@ -14,10 +14,9 @@ use crate::process_manager::ProcessManager;
 use crate::utils::{int_to_stream_type, stream_type_to_stdio};
 
 pub async fn handle(
-    request_id: u32,
     request: &api::StartRequest,
     processes: ProcessManager,
-) -> anyhow::Result<api::Response> {
+) -> anyhow::Result<api::response::Command> {
     let mut command = Command::new(request.program.clone());
 
     for arg in request.args.iter() {
@@ -66,21 +65,18 @@ pub async fn handle(
         .spawn()
         .with_context(|| format!("failed to run {:?}", request.program))?;
 
-    let stdin_fd = spawned.stdin.as_ref().map(|_| 0);
-    let stdout_fd = spawned.stdout.as_ref().map(|_| 1);
-    let stderr_fd = spawned.stderr.as_ref().map(|_| 2);
+    let stdin = spawned.stdin.as_ref().map(|_| 0);
+    let stdout = spawned.stdout.as_ref().map(|_| 1);
+    let stderr = spawned.stderr.as_ref().map(|_| 2);
 
     let pid = processes.add_process(spawned)?;
 
     let start_response = api::StartResponse {
-        pid: pid as u64,
-        stdin: stdin_fd,
-        stdout: stdout_fd,
-        stderr: stderr_fd,
+        pid,
+        stdin,
+        stdout,
+        stderr,
     };
 
-    Ok(api::Response {
-        request_id,
-        command: Some(api::response::Command::Start(start_response)),
-    })
+    Ok(api::response::Command::Start(start_response))
 }

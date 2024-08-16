@@ -7,10 +7,9 @@ use crate::process_manager::ProcessManager;
 use crate::utils::MAX_PACKET_SIZE;
 
 pub async fn handle(
-    request_id: u32,
     request: &api::ReadRequest,
     processes: ProcessManager,
-) -> anyhow::Result<api::Response> {
+) -> anyhow::Result<api::response::Command> {
     if request.len == 0 {
         bail!("Invalid length");
     }
@@ -32,10 +31,7 @@ pub async fn handle(
         data: buf,
     };
 
-    Ok(api::Response {
-        request_id,
-        command: Some(Command::Read(read_response)),
-    })
+    Ok(Command::Read(read_response))
 }
 
 #[cfg(test)]

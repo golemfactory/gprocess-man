@@ -6,10 +6,9 @@ use crate::process_manager::ProcessManager;
 use crate::utils::int_to_signal;
 
 pub async fn handle(
-    request_id: u32,
     request: &api::SignalRequest,
     processes: ProcessManager,
-) -> api::Response {
+) -> anyhow::Result<api::response::Command> {
     todo!()
 
     /*use api::response::Command;
