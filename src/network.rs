@@ -82,7 +82,7 @@ pub async fn process_connection(stream: TcpStream, queue_tx: Sender<QueueCommand
             let request = match read_request(&mut reader).await? {
                 Some(request) => request,
                 None => {
-                    return Ok(());
+                    return anyhow::Ok(());
                 }
             };
 
@@ -102,10 +102,10 @@ pub async fn process_connection(stream: TcpStream, queue_tx: Sender<QueueCommand
                 }
             }
         }
-        Ok(())
     };
 
-    tokio::try_join!(reader, writer).await?;
+    tokio::try_join!(reader, writer)?;
 
     trace!("Connection closed");
+    anyhow::Ok(())
 }
