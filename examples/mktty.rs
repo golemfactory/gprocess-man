@@ -1,15 +1,14 @@
-use std::ffi::{CStr};
-use std::os::fd::{AsRawFd, OwnedFd};
-use std::{mem, thread};
 use anyhow::bail;
 use nix::libc::{tcgetattr, termios};
-use nix::pty::{forkpty, Winsize, ForkptyResult};
+use nix::pty::{forkpty, ForkptyResult, Winsize};
 use nix::sys::termios::Termios;
 use nix::unistd::{execv, Pid};
+use std::ffi::CStr;
+use std::os::fd::{AsRawFd, OwnedFd};
+use std::{mem, thread};
 
-
-unsafe fn run_cmd(cmd : &[u8]) -> anyhow::Result<(Pid, OwnedFd)> {
-    let mut tc : termios = mem::zeroed();
+unsafe fn run_cmd(cmd: &[u8]) -> anyhow::Result<(Pid, OwnedFd)> {
+    let mut tc: termios = mem::zeroed();
 
     if tcgetattr(0, &mut tc as *mut termios) == -1 {
         bail!("failed to get term cfg");
@@ -17,12 +16,15 @@ unsafe fn run_cmd(cmd : &[u8]) -> anyhow::Result<(Pid, OwnedFd)> {
     let cmd = cmd.as_ref();
     let cmd = CStr::from_bytes_until_nul(cmd.as_ref())?;
     let tc = Termios::from(tc);
-    match forkpty(Some(&Winsize {
-        ws_row: 25,
-        ws_col: 80,
-        ws_xpixel: 25 * 16,
-        ws_ypixel: 80 * 8,
-    }), Some(&tc))? {
+    match forkpty(
+        Some(&Winsize {
+            ws_row: 25,
+            ws_col: 80,
+            ws_xpixel: 25 * 16,
+            ws_ypixel: 80 * 8,
+        }),
+        Some(&tc),
+    )? {
         ForkptyResult::Child => {
             execv(cmd, &[cmd])?;
             panic!("unexpected")
@@ -33,12 +35,9 @@ unsafe fn run_cmd(cmd : &[u8]) -> anyhow::Result<(Pid, OwnedFd)> {
             Ok((child, master))
         }
     }
-
 }
 
-
-
-fn main() -> anyhow::Result<()>{
+fn main() -> anyhow::Result<()> {
     unsafe {
         let (pid, master) = run_cmd("/usr/bin/mc\0".as_bytes())?;
 
@@ -51,7 +50,7 @@ fn main() -> anyhow::Result<()>{
                 let stdout = std::io::stdout();
                 loop {
                     let n = nix::unistd::read(master_fd, &mut buf[..])?;
-                    if n<= 0 {
+                    if n <= 0 {
                         break;
                     }
                     nix::unistd::write(&stdout, &buf[..n])?;
@@ -77,7 +76,6 @@ fn main() -> anyhow::Result<()>{
                 }
                 anyhow::Ok(())
             });
-
 
             if let Err(e) = nix::sys::wait::waitpid(pid, None) {
                 eprintln!("err: {:?}", e);

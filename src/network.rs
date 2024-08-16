@@ -66,46 +66,46 @@ pub async fn process_connection(stream: TcpStream, queue_tx: Sender<QueueCommand
 
     let (write_tx, mut write_rx) = mpsc::channel::<api::Response>(32);
 
-    let local = task::LocalSet::new();
-
-    local
-        .run_until({
-            task::spawn_local(async move {
-                while let Some(response) = write_rx.recv().await {
-                    debug!("Writing response: {:?}", response);
-                    if let Err(e) = write_response(&mut writer, &response).await {
-                        error!("Error writing response: {}", e);
-                    }
-                }
-                trace!("Write channel closed");
-            })
-        })
-        .await;
-
-    loop {
-        let request = match read_request(&mut reader).await? {
-            Some(request) => request,
-            None => {
-                return Ok(());
-            }
-        };
-
-        match request.command {
-            Some(command) => {
-                queue_tx
-                    .send(QueueCommand::Command(
-                        request.request_id,
-                        command,
-                        write_tx.clone(),
-                    ))
-                    .await?;
-            }
-            None => {
-                error!("Missing command");
-                continue;
+    let writer = async move {
+        while let Some(response) = write_rx.recv().await {
+            debug!("Writing response: {:?}", response);
+            if let Err(e) = write_response(&mut writer, &response).await {
+                error!("Error writing response: {}", e);
             }
         }
-    }
+        trace!("Write channel closed");
+        Ok(())
+    };
+
+    let reader = async move {
+        loop {
+            let request = match read_request(&mut reader).await? {
+                Some(request) => request,
+                None => {
+                    return Ok(());
+                }
+            };
+
+            match request.command {
+                Some(command) => {
+                    queue_tx
+                        .send(QueueCommand::Command(
+                            request.request_id,
+                            command,
+                            write_tx.clone(),
+                        ))
+                        .await?;
+                }
+                None => {
+                    error!("Missing command");
+                    continue;
+                }
+            }
+        }
+        Ok(())
+    };
+
+    tokio::try_join!(reader, writer).await?;
 
     trace!("Connection closed");
 }
