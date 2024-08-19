@@ -1,13 +1,15 @@
 use anyhow::{anyhow, bail, Result};
 // use tokio::sync::Mutex;
-use parking_lot::Mutex;
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::ops::{Deref, DerefMut};
+use std::pin::Pin;
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
 use tokio::process::{Child, ChildStderr, ChildStdin, ChildStdout};
+use tokio::sync::Mutex;
 // use std::process::{Child, ChildStderr, ChildStdin, ChildStdout};
 use std::sync::Arc;
+use tokio::io::AsyncReadExt;
 
 pub type Pid = u64;
 
@@ -36,13 +38,13 @@ impl ProcessManager {
             stdout,
             stderr,
         });
-        let mut g = self.inner.lock();
+        let mut g = self.inner.lock().await;
         g.insert(pid, ci);
         Ok(pid)
     }
 
     pub async fn get_reader(&self, pid: Pid, fd: i32) -> Result<ReadHandle> {
-        let pi = self.pi(pid)?;
+        let pi = self.pi(pid).await?;
 
         let h = match fd {
             1 => pi
@@ -64,13 +66,13 @@ impl ProcessManager {
     }
 
     pub async fn wait(&self, pid: Pid) -> Result<i32> {
-        let mut pi = self.pi(pid)?;
+        let mut pi = self.pi(pid).await?;
         // let status = pi.child.wait()?;
         Ok(0)
     }
 
-    fn pi(&self, pid: Pid) -> anyhow::Result<Arc<ChildInfo>> {
-        let mut g = self.inner.lock();
+    async fn pi(&self, pid: Pid) -> anyhow::Result<Arc<ChildInfo>> {
+        let mut g = self.inner.lock().await;
         let pi = g.get(&pid).ok_or_else(|| anyhow!("pid {pid} not found"))?;
         Ok(Arc::clone(pi))
     }
@@ -85,12 +87,12 @@ struct ChildInfo {
 
 #[derive(Clone)]
 pub struct ReadHandle {
-    inner: Arc<Mutex<Box<dyn AsyncRead + Send>>>,
+    inner: Arc<Mutex<Box<dyn AsyncRead + Send + Unpin>>>,
 }
 
 impl From<ChildStdout> for ReadHandle {
     fn from(value: ChildStdout) -> Self {
-        let r: Box<dyn AsyncRead + Send> = Box::new(value);
+        let r: Box<dyn AsyncRead + Send + Unpin> = Box::new(value);
         let inner = Arc::new(Mutex::new(r));
         Self { inner }
     }
@@ -98,48 +100,47 @@ impl From<ChildStdout> for ReadHandle {
 
 impl From<ChildStderr> for ReadHandle {
     fn from(value: ChildStderr) -> Self {
-        let r: Box<dyn AsyncRead + Send> = Box::new(value);
+        let r: Box<dyn AsyncRead + Send + Unpin> = Box::new(value);
         let inner = Arc::new(Mutex::new(r));
         Self { inner }
     }
 }
 
-impl Read for ReadHandle {
-    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        //     let mut g = self
-        //         .inner
-        //         .try_lock()
-        //         .ok_or_else(|| std::io::Error::other(anyhow!("concurrent read")))?;
-        //     g.read(buf)
-        todo!()
+impl ReadHandle {
+    pub async fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        let mut g = self
+            .inner
+            .try_lock()
+            .map_err(|_| std::io::Error::other(anyhow!("concurrent read")))?;
+        g.read(buf).await
     }
 }
 
 #[derive(Clone)]
 pub struct WriteHandle {
-    inner: Arc<Mutex<Box<dyn AsyncWrite + Send>>>,
+    inner: Arc<Mutex<Box<dyn AsyncWrite + Send + Unpin>>>,
 }
 
 impl From<ChildStdin> for WriteHandle {
     fn from(value: ChildStdin) -> Self {
-        let w: Box<dyn AsyncWrite + Send> = Box::new(value);
+        let w: Box<dyn AsyncWrite + Send + Unpin> = Box::new(value);
         let inner = Arc::new(Mutex::new(w));
         Self { inner }
     }
 }
 
 impl WriteHandle {
-    async fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+    pub async fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         let mut g = self
             .inner
             .try_lock()
-            .ok_or_else(|| std::io::Error::other(anyhow!("concurrent write")))?;
-        pin!(g).write(buf).await
+            .map_err(|_| std::io::Error::other(anyhow!("concurrent write")))?;
+        g.write(buf).await
     }
 
-    fn flush(&mut self) -> std::io::Result<()> {
-        let mut g = self.inner.lock();
-        g.flush()
+    async fn flush(&mut self) -> std::io::Result<()> {
+        let mut g = self.inner.lock().await;
+        g.flush().await
     }
 
     // fn poll_write(

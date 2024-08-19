@@ -18,16 +18,14 @@ pub async fn handle(
         bail!("Length too large");
     }
 
-    let mut r = processes.get_reader(request.pid, request.stream)?;
+    let mut r = processes.get_reader(request.pid, request.stream).await?;
     let mut buf = vec![0; request.len as usize];
-    let (read, mut buf) = tokio::task::spawn_blocking(move || anyhow::Ok((r.read(&mut buf)?, buf)))
-        .await
-        .context("read error")??;
+    let r_size = r.read(&mut buf).await.context("read error")?;
 
-    buf.truncate(read);
+    buf.truncate(r_size);
 
     let read_response = api::ReadResponse {
-        len: read as u32,
+        len: r_size as u32,
         data: buf,
     };
 

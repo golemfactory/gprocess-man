@@ -7,8 +7,8 @@ use std::{
         fd::AsRawFd,
         unix::{ffi::OsStrExt, process::CommandExt},
     },
-    process::Command,
 };
+use tokio::process::Command;
 
 use crate::process_manager::ProcessManager;
 use crate::utils::{int_to_stream_type, stream_type_to_stdio};
@@ -69,7 +69,7 @@ pub async fn handle(
     let stdout = spawned.stdout.as_ref().map(|_| 1);
     let stderr = spawned.stderr.as_ref().map(|_| 2);
 
-    let pid = processes.add_process(spawned)?;
+    let pid = processes.add_process(spawned).await?;
 
     let start_response = api::StartResponse {
         pid,

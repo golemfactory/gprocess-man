@@ -25,7 +25,7 @@ pub async fn read_request(stream: &mut OwnedReadHalf) -> Result<Option<api::Requ
 
     if size.is_err() {
         // Connection closed?!: Connection reset by peer (os error 54)
-        error!("Error reading packet size: {}", size.err());
+        error!("Error reading packet size: {:?}", size.err());
         return Ok(None);
     };
 

@@ -8,7 +8,7 @@ pub async fn handle(
     request: &api::WaitRequest,
     processes: ProcessManager,
 ) -> anyhow::Result<api::response::Command> {
-    let mut w = processes.wait(request.pid)?;
+    let mut w = processes.wait(request.pid).await?;
     todo!()
     /*
     match processes.get_mut(&request.pid) {
