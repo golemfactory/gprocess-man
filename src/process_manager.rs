@@ -1,9 +1,12 @@
 use anyhow::{anyhow, bail, Result};
+// use tokio::sync::Mutex;
 use parking_lot::Mutex;
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::ops::{Deref, DerefMut};
-use std::process::{Child, ChildStderr, ChildStdin, ChildStdout};
+use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
+use tokio::process::{Child, ChildStderr, ChildStdin, ChildStdout};
+// use std::process::{Child, ChildStderr, ChildStdin, ChildStdout};
 use std::sync::Arc;
 
 pub type Pid = u64;
@@ -19,11 +22,14 @@ pub struct ProcessManager {
 }
 
 impl ProcessManager {
-    pub fn add_process(&self, mut child: Child) -> Result<Pid> {
+    pub async fn add_process(&self, mut child: Child) -> Result<Pid> {
         let stdin = child.stdin.take().map(Into::into);
         let stdout = child.stdout.take().map(Into::into);
         let stderr = child.stderr.take().map(Into::into);
-        let pid = child.id() as Pid;
+        let pid = match child.id() {
+            Some(pid) => pid as Pid,
+            None => bail!("failed to get pid"),
+        };
         let ci = Arc::new(ChildInfo {
             child,
             stdin,
@@ -35,7 +41,7 @@ impl ProcessManager {
         Ok(pid)
     }
 
-    pub fn get_reader(&self, pid: Pid, fd: i32) -> Result<ReadHandle> {
+    pub async fn get_reader(&self, pid: Pid, fd: i32) -> Result<ReadHandle> {
         let pi = self.pi(pid)?;
 
         let h = match fd {
@@ -53,11 +59,11 @@ impl ProcessManager {
         Ok(h)
     }
 
-    pub fn get_writer(&self, pid: Pid, fd: i32) -> Result<WriteHandle> {
+    pub async fn get_writer(&self, pid: Pid, fd: i32) -> Result<WriteHandle> {
         todo!()
     }
 
-    pub fn wait(&self, pid: Pid) -> Result<i32> {
+    pub async fn wait(&self, pid: Pid) -> Result<i32> {
         let mut pi = self.pi(pid)?;
         // let status = pi.child.wait()?;
         Ok(0)
@@ -79,12 +85,12 @@ struct ChildInfo {
 
 #[derive(Clone)]
 pub struct ReadHandle {
-    inner: Arc<Mutex<Box<dyn Read + Send>>>,
+    inner: Arc<Mutex<Box<dyn AsyncRead + Send>>>,
 }
 
 impl From<ChildStdout> for ReadHandle {
     fn from(value: ChildStdout) -> Self {
-        let r: Box<dyn Read + Send> = Box::new(value);
+        let r: Box<dyn AsyncRead + Send> = Box::new(value);
         let inner = Arc::new(Mutex::new(r));
         Self { inner }
     }
@@ -92,7 +98,7 @@ impl From<ChildStdout> for ReadHandle {
 
 impl From<ChildStderr> for ReadHandle {
     fn from(value: ChildStderr) -> Self {
-        let r: Box<dyn Read + Send> = Box::new(value);
+        let r: Box<dyn AsyncRead + Send> = Box::new(value);
         let inner = Arc::new(Mutex::new(r));
         Self { inner }
     }
@@ -100,38 +106,66 @@ impl From<ChildStderr> for ReadHandle {
 
 impl Read for ReadHandle {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        let mut g = self
-            .inner
-            .try_lock()
-            .ok_or_else(|| std::io::Error::other(anyhow!("concurrent read")))?;
-        g.read(buf)
+        //     let mut g = self
+        //         .inner
+        //         .try_lock()
+        //         .ok_or_else(|| std::io::Error::other(anyhow!("concurrent read")))?;
+        //     g.read(buf)
+        todo!()
     }
 }
 
 #[derive(Clone)]
 pub struct WriteHandle {
-    inner: Arc<Mutex<Box<dyn Write + Send>>>,
+    inner: Arc<Mutex<Box<dyn AsyncWrite + Send>>>,
 }
 
 impl From<ChildStdin> for WriteHandle {
     fn from(value: ChildStdin) -> Self {
-        let w: Box<dyn Write + Send> = Box::new(value);
+        let w: Box<dyn AsyncWrite + Send> = Box::new(value);
         let inner = Arc::new(Mutex::new(w));
         Self { inner }
     }
 }
 
-impl Write for WriteHandle {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+impl WriteHandle {
+    async fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         let mut g = self
             .inner
             .try_lock()
             .ok_or_else(|| std::io::Error::other(anyhow!("concurrent write")))?;
-        g.write(buf)
+        pin!(g).write(buf).await
     }
 
     fn flush(&mut self) -> std::io::Result<()> {
         let mut g = self.inner.lock();
         g.flush()
     }
+
+    // fn poll_write(
+    //     self: std::pin::Pin<&mut Self>,
+    //     cx: &mut std::task::Context<'_>,
+    //     buf: &[u8],
+    // ) -> std::task::Poll<std::result::Result<usize, std::io::Error>> {
+    //     let mut g = self
+    //         .inner
+    //         .try_lock()
+    //         .ok_or_else(|| std::io::Error::other(anyhow!("concurrent write")))?;
+    //     g.poll_write(cx, buf)
+    //     // std::pin::Pin::new(&mut g).write(buf)
+    // }
+
+    // fn poll_flush(
+    //     self: std::pin::Pin<&mut Self>,
+    //     cx: &mut std::task::Context<'_>,
+    // ) -> std::task::Poll<std::result::Result<(), std::io::Error>> {
+    //     todo!()
+    // }
+
+    // fn poll_shutdown(
+    //     self: std::pin::Pin<&mut Self>,
+    //     cx: &mut std::task::Context<'_>,
+    // ) -> std::task::Poll<std::result::Result<(), std::io::Error>> {
+    //     todo!()
+    // }
 }

@@ -1,9 +1,9 @@
-use std::pin::pin;
 use anyhow::{bail, Result};
 use futures::future::Either;
+use futures::prelude::*;
 use gprocess_proto::gprocess::api;
 use prost::Message;
-use futures::prelude::*;
+use std::pin::pin;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{
@@ -25,7 +25,7 @@ pub async fn read_request(stream: &mut OwnedReadHalf) -> Result<Option<api::Requ
 
     if size.is_err() {
         // Connection closed?!: Connection reset by peer (os error 54)
-        error!("Error reading packet size: {}", size.err().unwrap());
+        error!("Error reading packet size: {}", size.err());
         return Ok(None);
     };
 
@@ -40,14 +40,11 @@ pub async fn read_request(stream: &mut OwnedReadHalf) -> Result<Option<api::Requ
     }
 
     let mut buf = vec![0; size];
-    let read = tokio::select! {
-        r = stream.read_exact(&mut buf) => {
-            r?
-        },
-        _ = tokio::time::sleep(tokio::time::Duration::from_secs(3)) => {
-            bail!("Timeout reading packet")
-        }
-    };
+    let read = tokio::time::timeout(
+        tokio::time::Duration::from_secs(3),
+        stream.read_exact(&mut buf),
+    )
+    .await??;
 
     if read == 0 {
         // Connection closed

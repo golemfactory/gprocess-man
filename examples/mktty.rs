@@ -39,7 +39,7 @@ unsafe fn run_cmd(cmd: &[u8]) -> anyhow::Result<(Pid, OwnedFd)> {
 
 fn main() -> anyhow::Result<()> {
     unsafe {
-        let (pid, master) = run_cmd("/usr/bin/mc\0".as_bytes())?;
+        let (pid, master) = run_cmd("/opt/homebrew/bin/mc\0".as_bytes())?;
 
         crossterm::terminal::enable_raw_mode()?;
 
