@@ -1,20 +1,31 @@
 use anyhow::{bail, Result};
+use futures::future::Either;
+use futures::prelude::*;
 use gprocess_proto::gprocess::api;
 use prost::Message;
+use std::pin::pin;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
-    net::TcpStream,
-    sync::{mpsc::Sender, oneshot},
+    net::{
+        tcp::{OwnedReadHalf, OwnedWriteHalf},
+        TcpStream,
+    },
+    sync::{
+        mpsc::{self, Sender},
+        oneshot,
+    },
+    task::{self, LocalSet},
 };
-use tracing::error;
+use tracing::{debug, error, trace};
 
 use crate::{command::QueueCommand, utils::MAX_PACKET_SIZE};
 
-pub async fn read_request(stream: &mut TcpStream) -> Result<Option<api::Request>> {
+pub async fn read_request(stream: &mut OwnedReadHalf) -> Result<Option<api::Request>> {
     let size = stream.read_u32().await;
 
     if size.is_err() {
         // Connection closed?!: Connection reset by peer (os error 54)
+        error!("Error reading packet size: {:?}", size.err());
         return Ok(None);
     };
 
@@ -29,14 +40,11 @@ pub async fn read_request(stream: &mut TcpStream) -> Result<Option<api::Request>
     }
 
     let mut buf = vec![0; size];
-    let read = tokio::select! {
-        r = stream.read_exact(&mut buf) => {
-            r?
-        },
-        _ = tokio::time::sleep(tokio::time::Duration::from_secs(3)) => {
-            bail!("Timeout reading packet")
-        }
-    };
+    let read = tokio::time::timeout(
+        tokio::time::Duration::from_secs(3),
+        stream.read_exact(&mut buf),
+    )
+    .await??;
 
     if read == 0 {
         // Connection closed
@@ -46,44 +54,65 @@ pub async fn read_request(stream: &mut TcpStream) -> Result<Option<api::Request>
     Ok(Some(api::Request::decode(buf.as_slice())?))
 }
 
-pub async fn write_response(stream: &mut TcpStream, response: &api::Response) -> Result<()> {
+pub async fn write_response(stream: &mut OwnedWriteHalf, response: &api::Response) -> Result<()> {
     stream.write_u32(response.encoded_len() as u32).await?;
     stream.write_all(&response.encode_to_vec()).await?;
 
     Ok(())
 }
 
-pub async fn process_connection(
-    stream: &mut TcpStream,
-    queue_tx: Sender<QueueCommand>,
-) -> Result<()> {
-    loop {
-        let request = match read_request(stream).await? {
-            Some(request) => request,
-            None => {
-                return Ok(());
-            }
-        };
+pub async fn process_connection(stream: TcpStream, queue_tx: Sender<QueueCommand>) -> Result<()> {
+    let (mut reader, mut writer) = stream.into_split();
 
-        match request.command {
-            Some(command) => {
-                let (response_tx, response_rx) = oneshot::channel::<api::Response>();
+    let (write_tx, mut write_rx) = mpsc::channel::<api::Response>(32);
 
-                queue_tx
-                    .send(QueueCommand::Command(
-                        request.request_id,
-                        command,
-                        response_tx,
-                    ))
-                    .await?;
-
-                let response = response_rx.await?;
-                write_response(stream, &response).await?;
-            }
-            None => {
-                error!("Missing command");
-                continue;
+    let writer = async move {
+        while let Some(response) = write_rx.recv().await {
+            debug!("Writing response: {:?}", response);
+            if let Err(e) = write_response(&mut writer, &response).await {
+                error!("Error writing response: {}", e);
             }
         }
-    }
+        trace!("Write channel closed");
+        anyhow::Ok(())
+    };
+
+    let reader = async move {
+        loop {
+            let request = match read_request(&mut reader).await? {
+                Some(request) => request,
+                None => {
+                    return anyhow::Ok(());
+                }
+            };
+
+            match request.command {
+                Some(command) => {
+                    queue_tx
+                        .send(QueueCommand::Command(
+                            request.request_id,
+                            command,
+                            write_tx.clone(),
+                        ))
+                        .await?;
+                }
+                None => {
+                    error!("Missing command");
+                    continue;
+                }
+            }
+        }
+    };
+
+    match future::select(pin!(reader), pin!(writer)).await {
+        Either::Left(_) => {
+            trace!("read done");
+        }
+        Either::Right(_) => {
+            trace!("write done");
+        }
+    };
+
+    trace!("Connection closed");
+    anyhow::Ok(())
 }

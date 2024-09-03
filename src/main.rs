@@ -1,4 +1,9 @@
-use std::{collections::HashMap, net::SocketAddr, process::Child};
+#![allow(unused_imports)]
+#![allow(unused_variables)]
+#![allow(unused_mut)]
+#![allow(dead_code)]
+
+use std::net::SocketAddr;
 
 use clap::{arg, command, value_parser};
 use network::process_connection;
@@ -7,7 +12,9 @@ use tokio::sync::mpsc::{self};
 use tracing::{info, trace};
 
 use command::QueueCommand;
-use handler::{handle_request_command, reap_processes};
+use gprocess_proto::gprocess::api;
+use gprocess_proto::gprocess::api::Response;
+use handler::handle_request_command;
 use utils::{init_tracing, print_version};
 
 shadow!(build);
@@ -15,14 +22,8 @@ shadow!(build);
 mod command;
 mod handler;
 mod network;
+mod process_manager;
 mod utils;
-
-struct ChildInfo {
-    child: Child,
-    stdin: Option<std::process::ChildStdin>,
-    stdout: Option<std::process::ChildStdout>,
-    stderr: Option<std::process::ChildStderr>,
-}
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -47,7 +48,7 @@ async fn main() -> anyhow::Result<()> {
 
     info!("Listening on {:?}", interface);
 
-    let mut processes: HashMap<u64, ChildInfo> = HashMap::new();
+    let processes = process_manager::create();
 
     let (queue_tx, mut queue_rx) = mpsc::channel::<QueueCommand>(32);
 
@@ -56,11 +57,37 @@ async fn main() -> anyhow::Result<()> {
         while let Some(command) = queue_rx.recv().await {
             match command {
                 QueueCommand::Reaper => {
-                    reap_processes(&mut processes).await;
+                    //
                 }
                 QueueCommand::Command(id, request, response_tx) => {
-                    let response = handle_request_command(id, &request, &mut processes).await;
-                    response_tx.send(response).unwrap();
+                    let processes = processes.clone();
+                    let h = tokio::spawn(async move {
+                        let response = handle_request_command(id, request, processes);
+                        let rc = tokio::select! {
+                            r = response => {
+                                r
+                            },
+                            response_tx = response_tx.closed() => {
+                                tracing::error!("Response channel closed");
+                                return;
+                            }
+                        };
+
+                        let response = match rc {
+                            Ok(response) => response,
+                            Err(e) => {
+                                tracing::error!("late response: {}", e);
+                                api::Response {
+                                    request_id: id,
+                                    command: None,
+                                }
+                            }
+                        };
+
+                        if let Err(e) = response_tx.send(response).await {
+                            tracing::error!("Error sending response: {}", e);
+                        }
+                    });
                 }
             }
         }
@@ -77,7 +104,7 @@ async fn main() -> anyhow::Result<()> {
 
     loop {
         trace!("Waiting for connection");
-        let (mut stream, addr) = listener.accept().await?;
+        let (stream, addr) = listener.accept().await?;
 
         trace!("Accepted connection from {:?}", addr);
 
@@ -86,7 +113,7 @@ async fn main() -> anyhow::Result<()> {
         tokio::spawn(async move {
             trace!("Processing connection from {:?}", addr);
 
-            let rc = process_connection(&mut stream, queue_tx).await;
+            let rc = process_connection(stream, queue_tx).await;
 
             if let Err(e) = rc {
                 tracing::error!("Error processing connection from {:?}: {}", addr, e);
