@@ -62,7 +62,14 @@ impl ProcessManager {
     }
 
     pub async fn get_writer(&self, pid: Pid, fd: i32) -> Result<WriteHandle> {
-        todo!()
+        let pi = self.pi(pid).await?;
+
+        let h = match fd {
+            0 => pi.stdin.clone().ok_or_else(|| anyhow!("stdin is not piped"))?,
+            _ => bail!("invalid fd {}", fd),
+        };
+
+        Ok(h)
     }
 
     pub async fn wait(&self, pid: Pid) -> Result<i32> {
