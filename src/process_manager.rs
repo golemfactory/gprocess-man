@@ -33,7 +33,7 @@ impl ProcessManager {
             None => bail!("failed to get pid"),
         };
         let ci = Arc::new(ChildInfo {
-            child,
+            child: Mutex::new(child),
             stdin,
             stdout,
             stderr,
@@ -74,8 +74,13 @@ impl ProcessManager {
 
     pub async fn wait(&self, pid: Pid) -> Result<i32> {
         let mut pi = self.pi(pid).await?;
-        // let status = pi.child.wait()?;
-        Ok(0)
+        let status = pi.child.lock().await.wait().await?.code().unwrap_or(-1);
+        Ok(status)
+    }
+
+    pub async fn process_exists(&self, pid: Pid) -> bool {
+        let mut g = self.inner.lock().await;
+        g.get(&pid).is_some()
     }
 
     async fn pi(&self, pid: Pid) -> anyhow::Result<Arc<ChildInfo>> {
@@ -86,7 +91,7 @@ impl ProcessManager {
 }
 
 struct ChildInfo {
-    child: Child,
+    child: Mutex<Child>,
     stdin: Option<WriteHandle>,
     stdout: Option<ReadHandle>,
     stderr: Option<ReadHandle>,
