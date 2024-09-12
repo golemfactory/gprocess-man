@@ -12,6 +12,10 @@ export class ProcessManager {
         this.#client.close();
     }
 
+    closeForce() {
+        return this.killAll().finally(() => this.#client.close());
+    }
+
     async run(start: StartRequest): Promise<Process> {
         start = {
             ...start,
