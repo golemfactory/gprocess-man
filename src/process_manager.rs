@@ -75,6 +75,7 @@ impl ProcessManager {
     pub async fn wait(&self, pid: Pid) -> Result<i32> {
         let mut pi = self.pi(pid).await?;
         let status = pi.child.lock().await.wait().await?.code().unwrap_or(-1);
+        self.inner.lock().await.remove(&pid);
         Ok(status)
     }
 
