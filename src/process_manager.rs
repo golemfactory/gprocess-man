@@ -83,6 +83,11 @@ impl ProcessManager {
         g.get(&pid).is_some()
     }
 
+    pub async fn ps(&self) -> Vec<Pid> {
+        let mut g = self.inner.lock().await;
+        g.keys().cloned().collect()
+    }
+
     async fn pi(&self, pid: Pid) -> anyhow::Result<Arc<ChildInfo>> {
         let mut g = self.inner.lock().await;
         let pi = g.get(&pid).ok_or_else(|| anyhow!("pid {pid} not found"))?;

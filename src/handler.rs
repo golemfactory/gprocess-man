@@ -10,6 +10,7 @@ mod signal_request;
 mod start_request;
 mod wait_request;
 mod write_request;
+mod ps_request;
 
 pub async fn handle_request_command(
     request_id: u32,
@@ -32,6 +33,9 @@ pub async fn handle_request_command(
             .await
             .context("failed to process read")?,
         Command::Write(request) => write_request::handle(request, processes)
+            .await
+            .context("failed to write to process")?,
+        Command::Ps(request) => ps_request::handle(&request, processes)
             .await
             .context("failed to write to process")?,
     };

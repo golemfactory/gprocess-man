@@ -29,21 +29,22 @@ export class ProcessManager {
             throw new Error(`Invalid response type to a start request: ${resp?.$case}`);
         }
         console.debug("Spawned new process:", resp.start);
-        const proc = new Process(this.#client, resp.start);
-        this.#processes.push(proc);
-        return proc;
+        return new Process(this.#client, resp.start);
     }
 
-    ps(): Process[] {
-        // TODO: implement this in protocol
-        return this.#processes;
+    async ps(): Promise<Process[]> {
+        const resp = await this.#client.send({ $case: "ps", ps: {} });
+        if (resp?.$case !== "ps") {
+            throw new Error(`Invalid response type to a ps request: ${resp?.$case}`);
+        }
+        // TODO: add stdio info to ps
+        return resp.ps.pid.map(pid => new Process(this.#client, { pid }));
     }
 
-    killAll(): Promise<number[]> {
-        return Promise.all(this.ps().map(p => p.kill()));
+    async killAll(): Promise<number[]> {
+        const ps = await this.ps();
+        return Promise.all(ps.map(p => p.kill()));
     }
-
 
     #client: Client;
-    #processes: Process[] = [];
 }
