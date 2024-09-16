@@ -39,10 +39,8 @@ export class ProcessManager {
         return this.#processes;
     }
 
-    async killAll() {
-        for (const proc of this.ps()) {
-            await proc.kill();
-        }
+    killAll(): Promise<number[]> {
+        return Promise.all(this.ps().map(p => p.kill()));
     }
 
 
