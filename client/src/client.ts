@@ -4,7 +4,7 @@ import { Request, Response } from "./gprocess";
 interface RequestInfo {
     resolve: (response: Response["command"]) => void;
     reject: (reason?: any) => void;
-    timeoutId: NodeJS.Timeout;
+    timeoutId: NodeJS.Timeout | null;
 }
 
 export class Client {
@@ -21,7 +21,10 @@ export class Client {
         this.#socket.end();
     }
 
-    send(command: Request["command"]): Promise<Response["command"]> {
+    send(
+        command: Request["command"],
+        timeout_ms: number = this.#timeout_ms,
+    ): Promise<Response["command"]> {
         const requestId = this.#requestId++;
         const data = Request.encode({ requestId, command }).finish();
         const len = new Uint8Array(4);
@@ -31,10 +34,13 @@ export class Client {
         this.#socket.write(data);
 
         return new Promise((resolve, reject) => {
-            const timeoutId = setTimeout(
-                () => reject(new Error("Response timeout")),
-                this.#timeout_ms,
-            );
+            let timeoutId = null;
+            if (timeout_ms >= 0) {
+                timeoutId = setTimeout(
+                    () => reject(new Error("Response timeout")),
+                    timeout_ms,
+                );
+            }
             this.#requests[requestId] = { resolve, reject, timeoutId };
         });
     }
@@ -67,7 +73,9 @@ export class Client {
         console.debug("Client closed.  Canceling all pending requests...");
         for (const req of this.#requests) {
             req.reject(new Error("Request canceled"));
-            clearTimeout(req.timeoutId);
+            if (req.timeoutId != null) {
+                clearTimeout(req.timeoutId);
+            }
         }
     }
 
