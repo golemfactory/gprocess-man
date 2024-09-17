@@ -48,7 +48,5 @@ async function example3() {
 
 const procman = new ProcessManager();
 Promise.all([example1(), example2(), example3()])
-    .then(() => procman.close())
-    .catch(e => {
-        console.error("Error:", e.message);
-    });
+    .catch(e => console.error("Error:", e.message))
+    .finally(() => procman.close().catch(e => console.error(e.message)));
