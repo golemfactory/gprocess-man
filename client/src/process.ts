@@ -45,23 +45,25 @@ export class Process {
         }
     }
 
-    async wait(): Promise<number> {
+    async wait(timeout_ms: number = -1): Promise<number> {
         const wait = {
             pid: this.info.pid,
         };
-        const resp = await this.#client.send({ $case: "wait", wait });
+        const resp = await this.#client.send({ $case: "wait", wait }, timeout_ms);
         if (resp?.$case !== "wait") {
             throw new Error(`Invalid response type to a wait request: ${resp?.$case}`);
         }
         return resp.wait.status;
     }
 
-    async kill(timeout_ms: number = 5 * 1000): Promise<number> {
-        await this.signal(15);
-        await new Promise(resolve => setTimeout(resolve, timeout_ms));
-        // TODO: Check with ps to see if process got killed or not
-        await this.signal(9);
-        return this.wait();
+    kill(timeout_ms: number = 5 * 1000): Promise<number> {
+        this.signal(15).catch(() => {});
+        const timeoutId = setTimeout(
+            () => this.signal(9).catch(() => {}),
+            timeout_ms,
+        );
+        return this.wait(timeout_ms * 2)
+            .finally(() => clearTimeout(timeoutId));
     }
 
 
