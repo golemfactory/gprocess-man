@@ -17,8 +17,7 @@ export class Process {
         if (resp?.$case !== "read") {
             throw new Error(`Invalid response type to a read request: ${resp?.$case}`);
         }
-        // TODO: remove len from response
-        return resp.read.data.subarray(0, resp.read.len);
+        return resp.read.data;
     }
 
     async write(data: Uint8Array, stream: number = 0): Promise<number> {

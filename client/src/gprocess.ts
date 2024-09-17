@@ -135,7 +135,6 @@ export interface WaitResponse {
 }
 
 export interface ReadResponse {
-  len: number;
   data: Uint8Array;
 }
 
@@ -1401,16 +1400,13 @@ export const WaitResponse = {
 };
 
 function createBaseReadResponse(): ReadResponse {
-  return { len: 0, data: new Uint8Array(0) };
+  return { data: new Uint8Array(0) };
 }
 
 export const ReadResponse = {
   encode(message: ReadResponse, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    if (message.len !== 0) {
-      writer.uint32(8).uint32(message.len);
-    }
     if (message.data.length !== 0) {
-      writer.uint32(18).bytes(message.data);
+      writer.uint32(10).bytes(message.data);
     }
     return writer;
   },
@@ -1423,14 +1419,7 @@ export const ReadResponse = {
       const tag = reader.uint32();
       switch (tag >>> 3) {
         case 1:
-          if (tag !== 8) {
-            break;
-          }
-
-          message.len = reader.uint32();
-          continue;
-        case 2:
-          if (tag !== 18) {
+          if (tag !== 10) {
             break;
           }
 
@@ -1446,17 +1435,11 @@ export const ReadResponse = {
   },
 
   fromJSON(object: any): ReadResponse {
-    return {
-      len: isSet(object.len) ? globalThis.Number(object.len) : 0,
-      data: isSet(object.data) ? bytesFromBase64(object.data) : new Uint8Array(0),
-    };
+    return { data: isSet(object.data) ? bytesFromBase64(object.data) : new Uint8Array(0) };
   },
 
   toJSON(message: ReadResponse): unknown {
     const obj: any = {};
-    if (message.len !== 0) {
-      obj.len = Math.round(message.len);
-    }
     if (message.data.length !== 0) {
       obj.data = base64FromBytes(message.data);
     }
@@ -1468,7 +1451,6 @@ export const ReadResponse = {
   },
   fromPartial<I extends Exact<DeepPartial<ReadResponse>, I>>(object: I): ReadResponse {
     const message = createBaseReadResponse();
-    message.len = object.len ?? 0;
     message.data = object.data ?? new Uint8Array(0);
     return message;
   },

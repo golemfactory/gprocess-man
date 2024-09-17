@@ -96,8 +96,7 @@ message SignalResponse {}
 message WaitResponse { required int32 status = 1; }
 
 message ReadResponse {
-  required uint32 len = 1;
-  required bytes data = 2;
+  required bytes data = 1;
 }
 
 message WriteResponse { required uint32 len = 1; }
