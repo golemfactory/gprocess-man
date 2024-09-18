@@ -5,7 +5,7 @@ use gprocess_proto::gprocess::api;
 use prost::Message;
 use std::pin::pin;
 use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt},
+    io::{AsyncReadExt, AsyncWriteExt, ErrorKind},
     net::{
         tcp::{OwnedReadHalf, OwnedWriteHalf},
         TcpStream,
@@ -21,15 +21,15 @@ use tracing::{debug, error, trace};
 use crate::{command::QueueCommand, utils::MAX_PACKET_SIZE};
 
 pub async fn read_request(stream: &mut OwnedReadHalf) -> Result<Option<api::Request>> {
-    let size = stream.read_u32().await;
-
-    if size.is_err() {
-        // Connection closed?!: Connection reset by peer (os error 54)
-        error!("Error reading packet size: {:?}", size.err());
-        return Ok(None);
+    let size = match stream.read_u32().await {
+        Ok(size) => size as usize,
+        Err(e) => {
+            if e.kind() != ErrorKind::UnexpectedEof {
+                error!("Error reading packet size: {}", e);
+            }
+            return Ok(None);
+        }
     };
-
-    let size = size.unwrap() as usize;
 
     if size > MAX_PACKET_SIZE {
         bail!("Packet too large {}", size);
