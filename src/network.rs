@@ -68,7 +68,7 @@ pub async fn process_connection(stream: TcpStream, queue_tx: Sender<QueueCommand
 
     let writer = async move {
         while let Some(response) = write_rx.recv().await {
-            debug!("Writing response: {:?}", response);
+            debug!("<- {:?}", response);
             if let Err(e) = write_response(&mut writer, &response).await {
                 error!("Error writing response: {}", e);
             }
@@ -85,6 +85,7 @@ pub async fn process_connection(stream: TcpStream, queue_tx: Sender<QueueCommand
                     return anyhow::Ok(());
                 }
             };
+            debug!("-> {:?}", request);
 
             match request.command {
                 Some(command) => {

@@ -9,7 +9,7 @@ use clap::{arg, command, value_parser};
 use network::process_connection;
 use shadow_rs::shadow;
 use tokio::sync::mpsc::{self};
-use tracing::{info, trace};
+use tracing::{error, info, trace};
 
 use command::QueueCommand;
 use gprocess_proto::gprocess::api;
@@ -59,33 +59,30 @@ async fn main() -> anyhow::Result<()> {
                 QueueCommand::Reaper => {
                     //
                 }
-                QueueCommand::Command(id, request, response_tx) => {
+                QueueCommand::Command(request_id, request, response_tx) => {
                     let processes = processes.clone();
-                    let h = tokio::spawn(async move {
-                        let response = handle_request_command(id, request, processes);
-                        let rc = tokio::select! {
-                            r = response => {
-                                r
-                            },
-                            response_tx = response_tx.closed() => {
-                                tracing::error!("Response channel closed");
+                    tokio::spawn(async move {
+                        let response = tokio::select! {
+                            r = handle_request_command(&request, &processes) => {
+                                r.unwrap_or_else(|e| {
+                                    error!("Command error ({}): {:#}", request_id, e);
+                                    api::response::Command::Error(api::Error {
+                                        message: format!("{:#}", e),
+                                    })
+                                })
+                            }
+                            _ = response_tx.closed() => {
+                                error!("Response channel closed");
                                 return;
                             }
                         };
 
-                        let response = match rc {
-                            Ok(response) => response,
-                            Err(e) => {
-                                tracing::error!("late response: {}", e);
-                                api::Response {
-                                    request_id: id,
-                                    command: None,
-                                }
-                            }
+                        let response = api::Response {
+                            request_id,
+                            command: Some(response),
                         };
-
                         if let Err(e) = response_tx.send(response).await {
-                            tracing::error!("Error sending response: {}", e);
+                            error!("Error sending response: {}", e);
                         }
                     });
                 }
@@ -116,7 +113,7 @@ async fn main() -> anyhow::Result<()> {
             let rc = process_connection(stream, queue_tx).await;
 
             if let Err(e) = rc {
-                tracing::error!("Error processing connection from {:?}: {}", addr, e);
+                error!("Error processing connection from {:?}: {}", addr, e);
             }
         });
     }
