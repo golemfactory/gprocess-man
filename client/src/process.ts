@@ -32,7 +32,10 @@ export class Process {
         return resp.read.data;
     }
 
-    async write(data: Uint8Array, stream: number = 0): Promise<number> {
+    async write(data: string | Uint8Array, stream: number = 0): Promise<number> {
+        if (typeof data === "string") {
+            data = new TextEncoder().encode(data);
+        }
         const write = {
             pid: this.info.pid,
             stream,

@@ -1,6 +1,7 @@
 {
 	"compilerOptions": {
 		"paths": {
+			"#lib": ["./src/index.ts"]
 		},
 		"resolveJsonModule": true,
 		"esModuleInterop": true,
@@ -25,8 +26,5 @@
 		"noUnusedLocals": true,
 		"noUnusedParameters": true
 	},
-	"files": [
-		"src/index.ts",
-		"src/example.ts"
-	]
+	"files": ["src/index.ts"]
 }
