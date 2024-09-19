@@ -7,12 +7,7 @@ export class ProcessManager {
         this.#client = new Client();
     }
 
-    async close() {
-        await this.killAll();
-        this.#client.close();
-    }
-
-    closeForce() {
+    close() {
         return this.killAll().finally(() => this.#client.close());
     }
 
@@ -29,22 +24,24 @@ export class ProcessManager {
             throw new Error(`Invalid response type to a start request: ${resp?.$case}`);
         }
         console.debug("Spawned new process:", resp.start);
-        return new Process(this.#client, resp.start);
+        const proc = new Process(this.#client, resp.start);
+        this.#processes.set(proc.info.pid, proc);
+        return proc;
     }
 
-    async ps(): Promise<Process[]> {
+    async ps(): Promise<number[]> {
         const resp = await this.#client.send({ $case: "ps", ps: {} });
         if (resp?.$case !== "ps") {
             throw new Error(`Invalid response type to a ps request: ${resp?.$case}`);
         }
-        // TODO: add stdio info to ps
-        return resp.ps.pid.map(pid => new Process(this.#client, { pid }));
+        return resp.ps.pid;
     }
 
-    async killAll(): Promise<number[]> {
-        const ps = await this.ps();
+    async killAll(): Promise<(number | void)[]> {
+        const ps = Array.from(this.#processes.values());
         return Promise.all(ps.map(p => p.kill()));
     }
 
     #client: Client;
+    #processes: Map<number, Process> = new Map();
 }

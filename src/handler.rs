@@ -6,6 +6,7 @@ use gprocess_proto::gprocess::api::{
 
 use crate::process_manager::ProcessManager;
 
+mod close_request;
 mod ps_request;
 mod read_request;
 mod signal_request;
@@ -53,6 +54,12 @@ pub async fn handle_request_command(
                 .await
                 .map(Response::Ps)
                 .context("failed to list processes")
+        }
+        Request::Close(request) => {
+            close_request::handle(request, processes)
+                .await
+                .map(Response::Close)
+                .with_context(|| format!("failed to close process: {}", request.pid))
         }
     }
 }
