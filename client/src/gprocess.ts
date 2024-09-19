@@ -67,6 +67,7 @@ export interface Request {
     | { $case: "read"; read: ReadRequest }
     | { $case: "write"; write: WriteRequest }
     | { $case: "ps"; ps: PsRequest }
+    | { $case: "close"; close: CloseRequest }
     | undefined;
 }
 
@@ -79,6 +80,7 @@ export interface Response {
     | { $case: "read"; read: ReadResponse }
     | { $case: "write"; write: WriteResponse }
     | { $case: "ps"; ps: PsResponse }
+    | { $case: "close"; close: CloseResponse }
     | { $case: "error"; error: Error }
     | undefined;
 }
@@ -120,6 +122,10 @@ export interface WriteRequest {
 export interface PsRequest {
 }
 
+export interface CloseRequest {
+  pid: number;
+}
+
 export interface StartResponse {
   pid: number;
   stdin?: number | undefined;
@@ -131,7 +137,8 @@ export interface SignalResponse {
 }
 
 export interface WaitResponse {
-  status: number;
+  status?: number | undefined;
+  alreadyWaits?: boolean | undefined;
 }
 
 export interface ReadResponse {
@@ -144,6 +151,9 @@ export interface WriteResponse {
 
 export interface PsResponse {
   pid: number[];
+}
+
+export interface CloseResponse {
 }
 
 export interface Process {
@@ -315,6 +325,9 @@ export const Request = {
       case "ps":
         PsRequest.encode(message.command.ps, writer.uint32(58).fork()).ldelim();
         break;
+      case "close":
+        CloseRequest.encode(message.command.close, writer.uint32(66).fork()).ldelim();
+        break;
     }
     return writer;
   },
@@ -375,6 +388,13 @@ export const Request = {
 
           message.command = { $case: "ps", ps: PsRequest.decode(reader, reader.uint32()) };
           continue;
+        case 8:
+          if (tag !== 66) {
+            break;
+          }
+
+          message.command = { $case: "close", close: CloseRequest.decode(reader, reader.uint32()) };
+          continue;
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -399,6 +419,8 @@ export const Request = {
         ? { $case: "write", write: WriteRequest.fromJSON(object.write) }
         : isSet(object.ps)
         ? { $case: "ps", ps: PsRequest.fromJSON(object.ps) }
+        : isSet(object.close)
+        ? { $case: "close", close: CloseRequest.fromJSON(object.close) }
         : undefined,
     };
   },
@@ -426,6 +448,9 @@ export const Request = {
     if (message.command?.$case === "ps") {
       obj.ps = PsRequest.toJSON(message.command.ps);
     }
+    if (message.command?.$case === "close") {
+      obj.close = CloseRequest.toJSON(message.command.close);
+    }
     return obj;
   },
 
@@ -452,6 +477,9 @@ export const Request = {
     }
     if (object.command?.$case === "ps" && object.command?.ps !== undefined && object.command?.ps !== null) {
       message.command = { $case: "ps", ps: PsRequest.fromPartial(object.command.ps) };
+    }
+    if (object.command?.$case === "close" && object.command?.close !== undefined && object.command?.close !== null) {
+      message.command = { $case: "close", close: CloseRequest.fromPartial(object.command.close) };
     }
     return message;
   },
@@ -484,6 +512,9 @@ export const Response = {
         break;
       case "ps":
         PsResponse.encode(message.command.ps, writer.uint32(58).fork()).ldelim();
+        break;
+      case "close":
+        CloseResponse.encode(message.command.close, writer.uint32(66).fork()).ldelim();
         break;
       case "error":
         Error.encode(message.command.error, writer.uint32(794).fork()).ldelim();
@@ -548,6 +579,13 @@ export const Response = {
 
           message.command = { $case: "ps", ps: PsResponse.decode(reader, reader.uint32()) };
           continue;
+        case 8:
+          if (tag !== 66) {
+            break;
+          }
+
+          message.command = { $case: "close", close: CloseResponse.decode(reader, reader.uint32()) };
+          continue;
         case 99:
           if (tag !== 794) {
             break;
@@ -579,6 +617,8 @@ export const Response = {
         ? { $case: "write", write: WriteResponse.fromJSON(object.write) }
         : isSet(object.ps)
         ? { $case: "ps", ps: PsResponse.fromJSON(object.ps) }
+        : isSet(object.close)
+        ? { $case: "close", close: CloseResponse.fromJSON(object.close) }
         : isSet(object.error)
         ? { $case: "error", error: Error.fromJSON(object.error) }
         : undefined,
@@ -607,6 +647,9 @@ export const Response = {
     }
     if (message.command?.$case === "ps") {
       obj.ps = PsResponse.toJSON(message.command.ps);
+    }
+    if (message.command?.$case === "close") {
+      obj.close = CloseResponse.toJSON(message.command.close);
     }
     if (message.command?.$case === "error") {
       obj.error = Error.toJSON(message.command.error);
@@ -637,6 +680,9 @@ export const Response = {
     }
     if (object.command?.$case === "ps" && object.command?.ps !== undefined && object.command?.ps !== null) {
       message.command = { $case: "ps", ps: PsResponse.fromPartial(object.command.ps) };
+    }
+    if (object.command?.$case === "close" && object.command?.close !== undefined && object.command?.close !== null) {
+      message.command = { $case: "close", close: CloseResponse.fromPartial(object.command.close) };
     }
     if (object.command?.$case === "error" && object.command?.error !== undefined && object.command?.error !== null) {
       message.command = { $case: "error", error: Error.fromPartial(object.command.error) };
@@ -1195,6 +1241,63 @@ export const PsRequest = {
   },
 };
 
+function createBaseCloseRequest(): CloseRequest {
+  return { pid: 0 };
+}
+
+export const CloseRequest = {
+  encode(message: CloseRequest, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.pid !== 0) {
+      writer.uint32(8).uint64(message.pid);
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): CloseRequest {
+    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseCloseRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          if (tag !== 8) {
+            break;
+          }
+
+          message.pid = longToNumber(reader.uint64() as Long);
+          continue;
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): CloseRequest {
+    return { pid: isSet(object.pid) ? globalThis.Number(object.pid) : 0 };
+  },
+
+  toJSON(message: CloseRequest): unknown {
+    const obj: any = {};
+    if (message.pid !== 0) {
+      obj.pid = Math.round(message.pid);
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<CloseRequest>, I>>(base?: I): CloseRequest {
+    return CloseRequest.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<CloseRequest>, I>>(object: I): CloseRequest {
+    const message = createBaseCloseRequest();
+    message.pid = object.pid ?? 0;
+    return message;
+  },
+};
+
 function createBaseStartResponse(): StartResponse {
   return { pid: 0 };
 }
@@ -1343,13 +1446,16 @@ export const SignalResponse = {
 };
 
 function createBaseWaitResponse(): WaitResponse {
-  return { status: 0 };
+  return {};
 }
 
 export const WaitResponse = {
   encode(message: WaitResponse, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    if (message.status !== 0) {
+    if (message.status !== undefined && message.status !== 0) {
       writer.uint32(8).int32(message.status);
+    }
+    if (message.alreadyWaits !== undefined && message.alreadyWaits !== false) {
+      writer.uint32(16).bool(message.alreadyWaits);
     }
     return writer;
   },
@@ -1368,6 +1474,13 @@ export const WaitResponse = {
 
           message.status = reader.int32();
           continue;
+        case 2:
+          if (tag !== 16) {
+            break;
+          }
+
+          message.alreadyWaits = reader.bool();
+          continue;
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1378,13 +1491,19 @@ export const WaitResponse = {
   },
 
   fromJSON(object: any): WaitResponse {
-    return { status: isSet(object.status) ? globalThis.Number(object.status) : 0 };
+    return {
+      status: isSet(object.status) ? globalThis.Number(object.status) : 0,
+      alreadyWaits: isSet(object.alreadyWaits) ? globalThis.Boolean(object.alreadyWaits) : false,
+    };
   },
 
   toJSON(message: WaitResponse): unknown {
     const obj: any = {};
-    if (message.status !== 0) {
+    if (message.status !== undefined && message.status !== 0) {
       obj.status = Math.round(message.status);
+    }
+    if (message.alreadyWaits !== undefined && message.alreadyWaits !== false) {
+      obj.alreadyWaits = message.alreadyWaits;
     }
     return obj;
   },
@@ -1395,6 +1514,7 @@ export const WaitResponse = {
   fromPartial<I extends Exact<DeepPartial<WaitResponse>, I>>(object: I): WaitResponse {
     const message = createBaseWaitResponse();
     message.status = object.status ?? 0;
+    message.alreadyWaits = object.alreadyWaits ?? false;
     return message;
   },
 };
@@ -1578,6 +1698,49 @@ export const PsResponse = {
   fromPartial<I extends Exact<DeepPartial<PsResponse>, I>>(object: I): PsResponse {
     const message = createBasePsResponse();
     message.pid = object.pid?.map((e) => e) || [];
+    return message;
+  },
+};
+
+function createBaseCloseResponse(): CloseResponse {
+  return {};
+}
+
+export const CloseResponse = {
+  encode(_: CloseResponse, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): CloseResponse {
+    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseCloseResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(_: any): CloseResponse {
+    return {};
+  },
+
+  toJSON(_: CloseResponse): unknown {
+    const obj: any = {};
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<CloseResponse>, I>>(base?: I): CloseResponse {
+    return CloseResponse.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<CloseResponse>, I>>(_: I): CloseResponse {
+    const message = createBaseCloseResponse();
     return message;
   },
 };
