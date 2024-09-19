@@ -37,11 +37,14 @@ export class Client {
             let timeoutId = null;
             if (timeout_ms >= 0) {
                 timeoutId = setTimeout(
-                    () => reject(new Error("Response timeout")),
+                    () => {
+                        reject(new Error("Response timeout"));
+                        this.#requests.delete(requestId);
+                    },
                     timeout_ms,
                 );
             }
-            this.#requests[requestId] = { resolve, reject, timeoutId };
+            this.#requests.set(requestId, { resolve, reject, timeoutId });
         });
     }
 
@@ -60,9 +63,14 @@ export class Client {
 
             this.#buf.splice(0, 4);
             const resp = Response.decode(new Uint8Array(this.#buf.splice(0, len)));
-            const resolve = this.#requests[resp.requestId]?.resolve;
-            if (resolve != null) {
+            const req = this.#requests.get(resp.requestId);
+            if (req != null) {
+                const resolve = req.resolve;
                 resolve(resp.command);
+                if (req.timeoutId != null) {
+                    clearTimeout(req.timeoutId);
+                }
+                this.#requests.delete(resp.requestId);
             } else {
                 console.warn("Response to unknown request:", resp.requestId);
             }
@@ -71,7 +79,7 @@ export class Client {
 
     #onClose() {
         console.debug("Client closed.  Canceling all pending requests...");
-        for (const req of this.#requests) {
+        for (const req of this.#requests.values()) {
             req.reject(new Error("Request canceled"));
             if (req.timeoutId != null) {
                 clearTimeout(req.timeoutId);
@@ -85,5 +93,5 @@ export class Client {
 
     #requestId: number = 0;
     #buf: number[] = [];
-    #requests: RequestInfo[] = [];
+    #requests: Map<number, RequestInfo> = new Map();
 }
