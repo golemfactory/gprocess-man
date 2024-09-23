@@ -1,10 +1,11 @@
-import { StartRequest, Stream } from "./gprocess";
 import { Client } from "./client";
+import { StartRequest, Stream } from "./gprocess";
 import { Process } from "./process";
+import { Socket } from "./socket";
 
 export class ProcessManager {
-    constructor() {
-        this.#client = new Client();
+    constructor(socket: Socket, timeout_ms: number = 30 * 1000) {
+        this.#client = new Client(socket, timeout_ms);
     }
 
     close() {

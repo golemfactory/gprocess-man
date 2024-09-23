@@ -1,5 +1,5 @@
-import * as net from "node:net";
 import { Request, Response } from "./gprocess";
+import { Socket } from "./socket";
 
 interface RequestInfo {
     resolve: (response: Response["command"]) => void;
@@ -8,17 +8,17 @@ interface RequestInfo {
 }
 
 export class Client {
-    constructor(timeout_ms: number = 30 * 1000) {
-        this.#socket = net.connect(1234, "127.0.0.1");
+    constructor(socket: Socket, timeout_ms: number) {
+        this.#socket = socket;
         this.#timeout_ms = timeout_ms;
 
-        this.#socket.on("close", () => this.#onClose());
-        this.#socket.on("error", e => console.error("Client error:", e.message));
-        this.#socket.on("data", data => this.#onData(data));
+        this.#socket.onClose(() => this.#onClose());
+        this.#socket.onError(e => console.error("Client error:", e.message));
+        this.#socket.onData(data => this.#onData(data));
     }
 
     close() {
-        this.#socket.end();
+        this.#socket.close();
     }
 
     send(
@@ -88,7 +88,7 @@ export class Client {
     }
 
 
-    #socket: net.Socket;
+    #socket: Socket;
     #timeout_ms: number;
 
     #requestId: number = 0;

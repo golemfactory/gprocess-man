@@ -1,4 +1,4 @@
-import { ProcessManager } from "#lib";
+import { ProcessManager, TcpSocket } from "#lib";
 
 function str(value: Uint8Array): string {
     return new TextDecoder().decode(value);
@@ -10,7 +10,7 @@ function args(value: string[]): Uint8Array[] {
 }
 
 async function example_echo() {
-    const procman = new ProcessManager();
+    const procman = new ProcessManager(new TcpSocket(1234));
     const proc = await procman.run({
         program: "echo",
         args: args(["test"]),

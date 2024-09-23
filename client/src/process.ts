@@ -1,5 +1,5 @@
-import { StartResponse } from "./gprocess";
 import { Client } from "./client";
+import { StartResponse } from "./gprocess";
 
 export class Process {
     constructor(client: Client, info: StartResponse) {

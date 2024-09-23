@@ -1,11 +1,11 @@
-import { ProcessManager } from "#lib";
+import { ProcessManager, TcpSocket } from "#lib";
 
 function str(value: Uint8Array): string {
     return new TextDecoder().decode(value);
 }
 
 async function example_sh() {
-    const procman = new ProcessManager();
+    const procman = new ProcessManager(new TcpSocket(1234));
     const proc = await procman.run({
         program: "sh",
         args: [],
