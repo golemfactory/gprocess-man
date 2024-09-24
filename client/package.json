@@ -9,10 +9,14 @@
         "#lib": "./src/index.ts"
     },
     "dependencies": {
-        "ts-proto": "1.181"
+        "ts-proto": "1.181",
+        "ws": "8.18"
     },
     "devDependencies": {
+        "@golem-sdk/pino-logger": "1.1",
+        "@golem-sdk/task-executor": "2.0",
         "@types/node": "22.5",
+        "@types/ws": "8.5",
         "rimraf": "6.0",
         "ts-node": "10.9",
         "typescript": "5.5"
