@@ -25,7 +25,7 @@ export class Process {
             stream,
             len,
         };
-        const resp = await this.#client.send({ $case: "read", read });
+        const resp = await this.#client.send({ $case: "read", read }, -1);
         if (resp?.$case !== "read") {
             throw new Error(`Invalid response type to a read request: ${resp?.$case}`);
         }

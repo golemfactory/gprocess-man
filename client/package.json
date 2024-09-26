@@ -15,16 +15,21 @@
     "devDependencies": {
         "@golem-sdk/pino-logger": "1.1",
         "@golem-sdk/task-executor": "2.0",
+        "@rollup/plugin-commonjs": "28.0",
+        "@rollup/plugin-node-resolve": "15.3",
+        "@rollup/plugin-typescript": "12.1",
         "@types/node": "22.5",
         "@types/ws": "8.5",
+        "http-server": "14.1",
         "rimraf": "6.0",
+        "rollup": "4.22",
         "ts-node": "10.9",
         "typescript": "5.5"
     },
     "scripts": {
-        "build": "tsc",
+        "build": "tsc && rollup -c",
         "build:proto": "cp ../gprocess-proto/protos/gprocess.proto . && protoc --plugin=./node_modules/.bin/protoc-gen-ts_proto --ts_proto_out=src/ --ts_proto_opt=oneof=unions ./gprocess.proto",
-        "start": "node lib/example.js",
+        "start": "http-server examples/golem/browser-sh/ --cors",
         "clean": "rimraf lib gprocess.proto"
     }
 }

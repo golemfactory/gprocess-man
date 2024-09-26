@@ -6,7 +6,7 @@
 
 /* eslint-disable */
 import * as _m0 from "protobufjs/minimal";
-import Long = require("long");
+import Long from "long";
 
 export const protobufPackage = "gprocess.api";
 
