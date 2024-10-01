@@ -1,17 +1,14 @@
-use anyhow::Context;
-use api::response::Command;
-use gprocess_proto::gprocess::api;
-use std::{collections::HashMap, io::Write, os::fd::AsRawFd};
+use anyhow::Result;
+use gprocess_proto::gprocess::api::{WriteRequest, WriteResponse};
 
 use crate::process_manager::ProcessManager;
 
 pub async fn handle(
-    request: api::WriteRequest,
-    processes: ProcessManager,
-) -> anyhow::Result<api::response::Command> {
+    request: &WriteRequest,
+    processes: &ProcessManager,
+) -> Result<WriteResponse> {
     let mut w = processes.get_writer(request.pid, request.stream).await?;
-    let data = request.data;
-    let len = w.write(data.as_slice()).await.context("write error")? as u32;
+    let len = w.write(&request.data).await?.try_into()?;
 
-    Ok(Command::Write(api::WriteResponse { len }))
+    Ok(WriteResponse { len })
 }

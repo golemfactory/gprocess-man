@@ -15,8 +15,8 @@ use crate::utils::{int_to_stream_type, stream_type_to_stdio};
 
 pub async fn handle(
     request: &api::StartRequest,
-    processes: ProcessManager,
-) -> anyhow::Result<api::response::Command> {
+    processes: &ProcessManager,
+) -> anyhow::Result<api::StartResponse> {
     let mut command = Command::new(request.program.clone());
 
     for arg in request.args.iter() {
@@ -78,5 +78,5 @@ pub async fn handle(
         stderr,
     };
 
-    Ok(api::response::Command::Start(start_response))
+    Ok(start_response)
 }

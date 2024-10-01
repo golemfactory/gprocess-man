@@ -89,7 +89,7 @@ async fn main() -> anyhow::Result<()> {
         match command {
             response::Command::Read(read_response) => {
                 // println!(" {:?}", response);
-                if read_response.len == 0 {
+                if read_response.data.len() == 0 {
                     println!("<EOS>");
                     break;
                 }

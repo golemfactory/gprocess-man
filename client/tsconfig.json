@@ -1,0 +1,33 @@
+{
+	"compilerOptions": {
+		"paths": {
+			"#lib": ["./src/index.ts"]
+		},
+		"resolveJsonModule": true,
+		"esModuleInterop": true,
+
+		"outDir": "lib",
+		"target": "es6",
+		"module": "commonjs",
+		"removeComments": true,
+		"declaration": true,
+		"sourceMap": false,
+		"declarationMap": false,
+
+		"strict": true,
+		"allowUnreachableCode": false,
+		"allowUnusedLabels": false,
+		"exactOptionalPropertyTypes": true,
+		"forceConsistentCasingInFileNames": true,
+		"noFallthroughCasesInSwitch": true,
+		"noImplicitReturns": true,
+		"noPropertyAccessFromIndexSignature": true,
+		"noUncheckedIndexedAccess": true,
+		"noUnusedLocals": true,
+		"noUnusedParameters": true
+	},
+	"files": [
+		"src/index.ts",
+		"src/browser.ts"
+	]
+}

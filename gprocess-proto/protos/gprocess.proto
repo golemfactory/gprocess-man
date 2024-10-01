@@ -32,6 +32,8 @@ message Request {
     WaitRequest wait = 4;
     ReadRequest read = 5;
     WriteRequest write = 6;
+    PsRequest ps = 7;
+    CloseRequest close = 8;
   }
 }
 
@@ -43,6 +45,8 @@ message Response {
     WaitResponse wait = 4;
     ReadResponse read = 5;
     WriteResponse write = 6;
+    PsResponse ps = 7;
+    CloseResponse close = 8;
 
     Error error = 99;
   }
@@ -80,6 +84,12 @@ message WriteRequest {
   required bytes data = 3;
 }
 
+message PsRequest {}
+
+message CloseRequest {
+  required uint64 pid = 1;
+}
+
 message StartResponse {
   required uint64 pid = 1;
   optional int32 stdin = 10;
@@ -89,14 +99,22 @@ message StartResponse {
 
 message SignalResponse {}
 
-message WaitResponse { required int32 status = 1; }
+message WaitResponse {
+  optional int32 status = 1;
+  optional bool already_waits = 2;
+}
 
 message ReadResponse {
-  required uint32 len = 1;
-  required bytes data = 2;
+  required bytes data = 1;
 }
 
 message WriteResponse { required uint32 len = 1; }
+
+message PsResponse {
+  repeated uint64 pid = 1;
+}
+
+message CloseResponse {}
 
 message Process { required uint64 pid = 1; }
 

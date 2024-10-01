@@ -33,7 +33,7 @@ impl ProcessManager {
             None => bail!("failed to get pid"),
         };
         let ci = Arc::new(ChildInfo {
-            child,
+            child: Mutex::new(child),
             stdin,
             stdout,
             stderr,
@@ -62,13 +62,34 @@ impl ProcessManager {
     }
 
     pub async fn get_writer(&self, pid: Pid, fd: i32) -> Result<WriteHandle> {
-        todo!()
+        let pi = self.pi(pid).await?;
+
+        let h = match fd {
+            0 => pi.stdin.clone().ok_or_else(|| anyhow!("stdin is not piped"))?,
+            _ => bail!("invalid fd {}", fd),
+        };
+
+        Ok(h)
     }
 
     pub async fn wait(&self, pid: Pid) -> Result<i32> {
         let mut pi = self.pi(pid).await?;
-        // let status = pi.child.wait()?;
-        Ok(0)
+        let status = pi.child.try_lock()?.wait().await?.code().unwrap_or(-1);
+        Ok(status)
+    }
+
+    pub async fn remove(&self, pid: Pid) {
+        self.inner.lock().await.remove(&pid);
+    }
+
+    pub async fn process_exists(&self, pid: Pid) -> bool {
+        let mut g = self.inner.lock().await;
+        g.get(&pid).is_some()
+    }
+
+    pub async fn ps(&self) -> Vec<Pid> {
+        let mut g = self.inner.lock().await;
+        g.keys().cloned().collect()
     }
 
     async fn pi(&self, pid: Pid) -> anyhow::Result<Arc<ChildInfo>> {
@@ -79,7 +100,7 @@ impl ProcessManager {
 }
 
 struct ChildInfo {
-    child: Child,
+    child: Mutex<Child>,
     stdin: Option<WriteHandle>,
     stdout: Option<ReadHandle>,
     stderr: Option<ReadHandle>,
